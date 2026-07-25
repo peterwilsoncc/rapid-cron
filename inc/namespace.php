@@ -1,11 +1,11 @@
 <?php
 /**
- * WP Plugin Template
+ * Rapid Cron
  *
- * @package           WpPluginTemplate
+ * @package           RapidCron
  */
 
-namespace PWCC\WpPluginTemplate;
+namespace PWCC\RapidCron;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.

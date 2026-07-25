@@ -2,10 +2,10 @@
 /**
  * Test Plugin Readme and PHP Headers
  *
- * @package WpPluginTemplate
+ * @package RapidCron
  */
 
-namespace PWCC\WpPluginTemplate\Tests;
+namespace PWCC\RapidCron\Tests;
 
 use WP_UnitTestCase;
 
