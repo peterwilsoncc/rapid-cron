@@ -137,8 +137,8 @@ class Job {
 			$this->id = $wpdb->insert_id;
 		}
 
-		self::flush_query_cache();
 		wp_cache_set( "job::{$this->id}", $this, 'rapid-cron-jobs' );
+		self::flush_query_cache();
 		return (bool) $result;
 	}
 
@@ -166,8 +166,8 @@ class Job {
 		);
 		$result = $wpdb->delete( $this->get_table(), $where, $this->row_format( $where ) );
 
-		self::flush_query_cache();
 		wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
+		self::flush_query_cache();
 
 		return (bool) $result;
 	}
