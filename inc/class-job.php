@@ -131,9 +131,9 @@ class Job {
 			$where  = array(
 				'id' => $this->id,
 			);
-			$result = $wpdb->update( $this->get_table(), $data, $where, $this->row_format( $data ), $this->row_format( $where ) );
+			$result = $wpdb->update( $this->get_job_table(), $data, $where, $this->row_format( $data ), $this->row_format( $where ) );
 		} else {
-			$result   = $wpdb->insert( $this->get_table(), $data, $this->row_format( $data ) );
+			$result   = $wpdb->insert( $this->get_job_table(), $data, $this->row_format( $data ) );
 			$this->id = $wpdb->insert_id;
 		}
 
@@ -164,7 +164,7 @@ class Job {
 		$where  = array(
 			'id' => $this->id,
 		);
-		$result = $wpdb->delete( $this->get_table(), $where, $this->row_format( $where ) );
+		$result = $wpdb->delete( $this->get_job_table(), $where, $this->row_format( $where ) );
 
 		wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
 		self::flush_query_cache();
@@ -189,7 +189,7 @@ class Job {
 		$where  = array(
 			'id' => $this->id,
 		);
-		$result = $wpdb->update( $this->get_table(), $set, $where, $this->row_format( $set ), $this->row_format( $where ) );
+		$result = $wpdb->update( $this->get_job_table(), $set, $where, $this->row_format( $set ), $this->row_format( $where ) );
 
 		wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
 		self::flush_query_cache();
@@ -202,7 +202,7 @@ class Job {
 	 *
 	 * @return string The table name.
 	 */
-	public static function get_table() {
+	public static function get_job_table() {
 		return get_table_name( 'jobs' );
 	}
 
@@ -268,7 +268,7 @@ class Job {
 		}
 
 		$suppress = $wpdb->suppress_errors();
-		$job      = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', static::get_table(), $job ) );
+		$job      = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', static::get_job_table(), $job ) );
 		$wpdb->suppress_errors( $suppress );
 
 		if ( ! $job ) {
@@ -409,7 +409,7 @@ class Job {
 		$args['limit'] = absint( $args['limit'] );
 
 		// Find all scheduled events for this site.
-		$table = static::get_table();
+		$table = static::get_job_table();
 
 		$sql          = "SELECT * FROM `{$table}` WHERE site = %d";
 		$sql_params[] = $args['site'];

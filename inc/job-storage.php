@@ -342,7 +342,7 @@ function pre_clear_scheduled_hook( $pre, $hook, $args, $wp_error = false ) {
 	global $wpdb;
 
 	// Clear all scheduled events for this site
-	$table = Job::get_table();
+	$table = Job::get_job_table();
 
 	$sql          = "DELETE FROM `{$table}` WHERE site = %d";
 	$sql_params[] = get_current_blog_id();
