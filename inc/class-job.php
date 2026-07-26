@@ -197,6 +197,35 @@ class Job {
 	}
 
 	/**
+	 * Mark a job as running in the database.
+	 *
+	 * Only jobs that are in the waiting state can be locked.
+	 *
+	 * @return WP_Error|bool Whether the job was deleted. True on success.
+	 */
+	public function lock() {
+		global $wpdb;
+		$wpdb->show_errors();
+
+		$set = array(
+			'status' => 'running',
+		);
+
+		$where  = array(
+			'id'     => $this->id,
+			'status' => 'waiting',
+		);
+		$result = (bool) $wpdb->update( $this->get_job_table(), $set, $where, $this->row_format( $set ), $this->row_format( $where ) );
+
+		if ( $result ) {
+			wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
+			self::flush_query_cache();
+		}
+
+		return (bool) $result;
+	}
+
+	/**
 	 * The jobs table name.
 	 *
 	 * @return string The table name.
