@@ -175,8 +175,7 @@ class Job {
 	/**
 	 * Complete a job in the database.
 	 *
-	 * @param array $options The options used for creating the job.
-	 * @return WP_Error|bool Whether the job was deleted. True on success.
+	 * @return WP_Error|bool Whether the job was marked completed. True on success.
 	 */
 	public function complete() {
 		global $wpdb;
