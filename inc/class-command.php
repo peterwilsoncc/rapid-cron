@@ -26,6 +26,12 @@ class Command extends WP_CLI_Command {
 		if ( empty( $job ) ) {
 			WP_CLI::error( 'Invalid job ID' );
 		}
+		$lock_obtained = $job->lock();
+		if ( ! $lock_obtained ) {
+			\WP_CLI::warning( 'Job locked by another instance.', 'rapid-cron' );
+			return;
+		}
+
 		// Make the current job id available for hooks run by this job
 		define( 'RAPID_CRON_JOB_ID', $job->id );
 
