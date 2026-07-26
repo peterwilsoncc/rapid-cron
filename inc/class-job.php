@@ -111,9 +111,9 @@ class Job {
 	/**
 	 * Save a job to the database.
 	 *
-	 * @param string $status The new status of the job.
+	 * @param string $new_status The new status of the job.
 	 */
-	public function save( $status = null ) {
+	public function save( $new_status = null ) {
 		global $wpdb;
 
 		$data = array(
@@ -123,8 +123,8 @@ class Job {
 			'nextrun' => gmdate( DATE_FORMAT, $this->nextrun ),
 			'args'    => serialize( $this->args ),
 		);
-		if ( $status ) {
-			$data['status'] = $status;
+		if ( $new_status ) {
+			$data['status'] = $new_status;
 		}
 
 		if ( $this->is_recurring() ) {
