@@ -173,6 +173,31 @@ class Job {
 	}
 
 	/**
+	 * Complete a job in the database.
+	 *
+	 * @param array $options The options used for creating the job.
+	 * @return WP_Error|bool Whether the job was deleted. True on success.
+	 */
+	public function complete() {
+		global $wpdb;
+		$wpdb->show_errors();
+
+		$set = array(
+			'status' => 'completed',
+		);
+
+		$where  = array(
+			'id' => $this->id,
+		);
+		$result = $wpdb->update( $this->get_table(), $set, $where, $this->row_format( $set ), $this->row_format( $where ) );
+
+		wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
+		self::flush_query_cache();
+
+		return (bool) $result;
+	}
+
+	/**
 	 * The jobs table name.
 	 *
 	 * @return string The table name.
