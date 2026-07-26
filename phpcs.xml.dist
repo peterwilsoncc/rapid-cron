@@ -25,13 +25,12 @@
 		<!-- sanitize_url() was undprected in WordPress 5.9.0 -->
 		<exclude name="WordPress.WP.DeprecatedFunctions.sanitize_urlFound"/>
 	</rule>
-	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+	<rule ref="WordPress.NamingConventions.ValidHookName">
 		<properties>
-			<!-- Value: replace the function, class, and variable prefixes used. Separate multiple prefixes with a comma. -->
-			<property name="prefixes" type="array" value="pwcc_,_pwcc_"/>
+			<property name="additionalWordDelimiters" value="-/."/>
 		</properties>
 	</rule>
-	<rule ref="WordPress.WP.I18n">
+	 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<!-- Value: replace the text domain used. -->
 			<property name="text_domain" type="array" value="rapid-cron"/>

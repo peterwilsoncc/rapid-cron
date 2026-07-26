@@ -21,10 +21,15 @@
 
 namespace PWCC\RapidCron;
 
+const DATE_FORMAT = 'Y-m-d H:i:s';
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
 require_once __DIR__ . '/inc/namespace.php';
+require_once __DIR__ . '/inc/class-job.php';
+require_once __DIR__ . '/inc/database.php';
+require_once __DIR__ . '/inc/job-storage.php';
 
 bootstrap();
