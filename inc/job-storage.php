@@ -159,13 +159,6 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 /**
  * Reschedules a recurring event.
  *
- * Note: The Cavalcade reschedule behaviour is intentionally different to WordPress's.
- * To avoid drift of cron schedules, Cavalcade adds the interval to the next scheduled
- * run time without checking if this time is in the past.
- *
- * To ensure the next run time is in the future, it is recommended you delete and reschedule
- * a job.
- *
  * @param null|bool|WP_Error $pre Value to return instead. Default null to continue adding the event.
  * @param stdClass           $event {
  *              An object containing an event's data.
@@ -191,7 +184,7 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'invalid_schedule',
-				__( 'Event schedule does not exist.' )
+				__( 'Event schedule does not exist.', 'rapid-cron' )
 			);
 		}
 
@@ -223,18 +216,25 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 
 	$job = $jobs[0];
 
-	// Now we assume something is wrong (single job?) and fail to reschedule
+	// Now we assume something is wrong (single job?) and fail to reschedule.
 	if ( 0 === $event->interval && 0 === $job->interval ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'invalid_schedule',
-				__( 'Event schedule does not exist.' )
+				__( 'Event schedule does not exist.', 'rapid-cron' )
 			);
 		}
 		return false;
 	}
 
-	$job->nextrun  = $job->nextrun + $event->interval;
+	$now = time();
+	if ( $event->timestamp >= $now ) {
+		$timestamp = $now + $event->interval;
+	} else {
+		$timestamp = $now + ( $event->interval - ( ( $now - $event->timestamp ) % $event->interval ) );
+	}
+
+	$job->nextrun  = $timestamp;
 	$job->interval = $event->interval;
 	$job->schedule = $event->schedule;
 	$job->save();
