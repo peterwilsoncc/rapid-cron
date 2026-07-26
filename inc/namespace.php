@@ -18,6 +18,7 @@ const PLUGIN_VERSION = '1.0.0';
  */
 function bootstrap() {
 	register_cache_groups();
+	register_cli_commands();
 	Database\bootstrap();
 	JobStorage\bootstrap();
 }
@@ -27,6 +28,18 @@ function bootstrap() {
  */
 function register_cache_groups() {
 	wp_cache_add_global_groups( array( 'rapid-cron', 'rapid-cron-jobs' ) );
+}
+
+/**
+ * Register the WP-CLI command
+ */
+function register_cli_commands() {
+	if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
+		return;
+	}
+
+	require __DIR__ . '/class-command.php';
+	\WP_CLI::add_command( 'rapid-cron', __NAMESPACE__ . '\\Command' );
 }
 
 /**
