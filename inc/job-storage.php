@@ -65,6 +65,10 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 		return $pre;
 	}
 
+	if ( $event->timestamp < time() ) {
+		$event->timestamp = time();
+	}
+
 	// First check if the job exists already.
 	$query = array(
 		'hook'      => $event->hook,
@@ -516,6 +520,10 @@ function schedule_event( $event, $wp_error = false ) {
 
 	if ( ! empty( $event->schedule ) ) {
 		return schedule_recurring_event( $event, $wp_error );
+	}
+
+	if ( $event->timestamp < time() ) {
+		$event->timestamp = time();
 	}
 
 	$job          = new Job();
