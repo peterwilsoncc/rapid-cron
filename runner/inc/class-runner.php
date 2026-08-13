@@ -8,7 +8,7 @@ namespace PWCC\RapidCron\Runner;
 use Exception;
 use PDO;
 
-const LOOP_INTERVAL = 1;
+const LOOP_INTERVAL = 1.5;
 
 class Runner {
 	public $options = [];
