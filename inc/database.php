@@ -34,11 +34,6 @@ function bootstrap() {
 function get_table_name( string $suffix ): string {
 	global $wpdb;
 	$prefix = 'rapid_cron';
-
-	if ( defined( 'PWCC_RAPID_CRON_DB_PREFIX' ) ) {
-		$prefix = PWCC_RAPID_CRON_DB_PREFIX;
-	}
-
 	$prefix = rtrim( $prefix, '_' ) . '_';
 
 	return "{$wpdb->base_prefix}{$prefix}{$suffix}";
