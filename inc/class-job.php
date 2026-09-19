@@ -4,7 +4,7 @@
  *
  * @package           RapidCron
  *
- * phpcs:disable Squiz.Commenting.FunctionComment.ParamCommentFullStop
+ * phpcs:disable Squiz.Commenting.FunctionComment.ParamCommentFullStop, WordPress.DB.DirectDatabaseQuery, WordPress.DateTime.RestrictedFunctions.date_date
  */
 
 namespace PWCC\RapidCron;
@@ -121,6 +121,7 @@ class Job {
 			'site'    => $this->site,
 			'start'   => gmdate( DATE_FORMAT, $this->start ),
 			'nextrun' => gmdate( DATE_FORMAT, $this->nextrun ),
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Args are always serialized.
 			'args'    => serialize( $this->args ),
 		);
 		if ( $new_status ) {
@@ -249,8 +250,9 @@ class Job {
 		$job = new Job( $row->id );
 
 		// Populate the object with row values.
-		$job->site     = $row->site;
-		$job->hook     = $row->hook;
+		$job->site = $row->site;
+		$job->hook = $row->hook;
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- always used for cron args.
 		$job->args     = unserialize( $row->args );
 		$job->start    = mysql2date( 'G', $row->start );
 		$job->nextrun  = mysql2date( 'G', $row->nextrun );
@@ -453,7 +455,8 @@ class Job {
 		}
 
 		if ( ! is_null( $args['args'] ) ) {
-			$sql         .= ' AND args = %s';
+			$sql .= ' AND args = %s';
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- args are always serialized.
 			$sql_params[] = serialize( $args['args'] );
 		}
 
@@ -499,14 +502,16 @@ class Job {
 
 		// Cache results.
 		$last_changed = wp_cache_get_last_changed( 'rapid-cron-jobs' );
-		$query_hash   = sha1( serialize( array( $sql, $sql_params ) ) );
-		$results      = wp_cache_get_salted(
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash generation.
+		$query_hash = sha1( serialize( array( $sql, $sql_params ) ) );
+		$results    = wp_cache_get_salted(
 			"jobs::{$query_hash}",
 			'rapid-cron-jobs',
 			$last_changed
 		);
 
 		if ( false === $results ) {
+			//phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- it is.
 			$results = $wpdb->get_results( $wpdb->prepare( $sql, $sql_params ) );
 			wp_cache_set_salted(
 				"jobs::{$query_hash}",

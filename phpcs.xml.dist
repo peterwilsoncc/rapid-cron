@@ -30,6 +30,9 @@
 			<property name="additionalWordDelimiters" value="-/."/>
 		</properties>
 	</rule>
+	<rule ref="WordPress.Security.EscapeOutput.OutputNotEscaped">
+		<exclude-pattern>*/runner/*</exclude-pattern>
+	</rule>
 	 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<!-- Value: replace the text domain used. -->

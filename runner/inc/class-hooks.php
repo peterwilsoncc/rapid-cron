@@ -1,4 +1,9 @@
 <?php
+/**
+ * Hooks system.
+ *
+ * @package RapidCron
+ */
 
 namespace PWCC\RapidCron\Runner;
 
