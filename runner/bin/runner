@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Cavalcade
+ * Cron runner
  */
 
 //@codingStandardsIgnoreLine
@@ -16,8 +16,7 @@ $options = getopt( 'h', [ 'help' ] );
 if ( isset( $options['h'] ) || isset( $options['help'] ) ) {
 	$script_name = basename( $argv[0] );
 	$header = <<<EOF
-This is daemon for Cavalcade, a scalable WordPress jobs system.
-More information: https://github.com/humanmade/Cavalcade
+This is daemon for Rapid Cron, a scalable WordPress jobs system.
 Usage: $script_name /path/to/wordpress
 EOF;
 

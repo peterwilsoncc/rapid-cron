@@ -119,7 +119,7 @@ class Runner {
 		// Load WP config.
 		define( 'ABSPATH', dirname( __DIR__ ) . '/fakewp/' );
 		if ( ! isset( $_SERVER['HTTP_HOST'] ) ) {
-			$_SERVER['HTTP_HOST'] = 'cavalcade.example';
+			$_SERVER['HTTP_HOST'] = 'rapid-cron.example';
 		}
 
 		include $config_path;
@@ -128,7 +128,7 @@ class Runner {
 		/**
 		 * Filter the table prefix from the configuration.
 		 *
-		 * @param string $table_prefix Table prefix to use for Cavalcade.
+		 * @param string $table_prefix Table prefix to use for Rapid Cron.
 		 */
 		$this->table_prefix = $this->hooks->run( 'Runner.bootstrap.table_prefix', $this->table_prefix );
 
@@ -159,7 +159,7 @@ class Runner {
 			/**
 			 * Action at the start of every loop iteration.
 			 *
-			 * @param Runner $this Instance of the Cavalcade Runner.
+			 * @param Runner $this Instance of the Runner.
 			 */
 			$this->hooks->run( 'Runner.run.loop_start', $this );
 
@@ -215,7 +215,7 @@ class Runner {
 		 */
 		$this->hooks->run( 'Runner.terminate.will_terminate', $signal );
 
-		printf( 'Cavalcade received terminate signal (%s), shutting down %d worker(s)...' . PHP_EOL, $signal, count( $this->workers ) );
+		printf( 'Runner received terminate signal (%s), shutting down %d worker(s)...' . PHP_EOL, $signal, count( $this->workers ) );
 		// Wait and clean up.
 		while ( ! empty( $this->workers ) ) {
 			$this->check_workers();

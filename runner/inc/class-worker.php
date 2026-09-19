@@ -26,7 +26,7 @@ class Worker {
 	public $pipes = array();
 
 	/**
-	 * Cavalcade job.
+	 * Cron job.
 	 *
 	 * @var Job
 	 */
