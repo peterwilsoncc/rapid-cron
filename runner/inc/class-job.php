@@ -58,7 +58,7 @@ class Job {
 	 *
 	 * @var string
 	 */
-	public $nextrun;
+	public $next_run;
 
 	/**
 	 * Job interval.

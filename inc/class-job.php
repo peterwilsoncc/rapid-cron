@@ -57,7 +57,7 @@ class Job {
 	 *
 	 * @var string
 	 */
-	public $nextrun;
+	public $next_run;
 
 	/**
 	 * Job interval.
@@ -120,7 +120,7 @@ class Job {
 			'hook'    => $this->hook,
 			'site'    => $this->site,
 			'start'   => gmdate( DATE_FORMAT, $this->start ),
-			'nextrun' => gmdate( DATE_FORMAT, $this->nextrun ),
+			'next_run' => gmdate( DATE_FORMAT, $this->next_run ),
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Args are always serialized.
 			'args'    => serialize( $this->args ),
 		);
@@ -255,7 +255,7 @@ class Job {
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- always used for cron args.
 		$job->args     = unserialize( $row->args );
 		$job->start    = mysql2date( 'G', $row->start );
-		$job->nextrun  = mysql2date( 'G', $row->nextrun );
+		$job->next_run  = mysql2date( 'G', $row->next_run );
 		$job->interval = $row->interval;
 		$job->status   = $row->status;
 
@@ -462,33 +462,33 @@ class Job {
 
 		// Timestamp 'future' shortcut.
 		if ( 'future' === $args['timestamp'] ) {
-			$sql         .= ' AND nextrun > %s';
+			$sql         .= ' AND next_run > %s';
 			$sql_params[] = date( DATE_FORMAT );
 		}
 
 		// Timestamp past shortcut.
 		if ( 'past' === $args['timestamp'] ) {
-			$sql         .= ' AND nextrun <= %s';
+			$sql         .= ' AND next_run <= %s';
 			$sql_params[] = date( DATE_FORMAT );
 		}
 
 		// Timestamp array range.
 		if ( is_array( $args['timestamp'] ) && count( $args['timestamp'] ) === 2 ) {
-			$sql         .= ' AND nextrun BETWEEN %s AND %s';
+			$sql         .= ' AND next_run BETWEEN %s AND %s';
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'][0] );
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'][1] );
 		}
 
 		// Default integer timestamp.
 		if ( is_int( $args['timestamp'] ) ) {
-			$sql         .= ' AND nextrun = %s';
+			$sql         .= ' AND next_run = %s';
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'] );
 		}
 
 		$sql       .= ' AND status IN(' . implode( ',', array_fill( 0, count( $args['statuses'] ), '%s' ) ) . ')';
 		$sql_params = array_merge( $sql_params, $args['statuses'] );
 
-		$sql .= ' ORDER BY nextrun';
+		$sql .= ' ORDER BY next_run';
 		if ( 'DESC' === $args['order'] ) {
 			$sql .= ' DESC';
 		} else {
@@ -548,7 +548,7 @@ class Job {
 			'hook'     => '%s',
 			'args'     => '%s',
 			'start'    => '%s',
-			'nextrun'  => '%s',
+			'next_run'  => '%s',
 			'interval' => '%d',
 			'schedule' => '%s',
 			'status'   => '%s',

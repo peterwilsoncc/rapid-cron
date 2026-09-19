@@ -301,8 +301,8 @@ class Runner {
 	 */
 	protected function get_next_job() {
 		$query  = "SELECT * FROM {$this->table_prefix}rapid_cron_jobs";
-		$query .= ' WHERE nextrun < NOW() AND status = "waiting"';
-		$query .= ' ORDER BY nextrun ASC';
+		$query .= ' WHERE next_run < NOW() AND status = "waiting"';
+		$query .= ' ORDER BY next_run ASC';
 		$query .= ' LIMIT 1';
 
 		/**

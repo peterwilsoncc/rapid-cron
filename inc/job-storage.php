@@ -240,7 +240,7 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		$timestamp = $now + ( $event->interval - ( ( $now - $event->timestamp ) % $event->interval ) );
 	}
 
-	$job->nextrun  = $timestamp;
+	$job->next_run  = $timestamp;
 	$job->interval = $event->interval;
 	$job->schedule = $event->schedule;
 	$job->save( 'waiting' );
@@ -424,7 +424,7 @@ function pre_get_scheduled_event( $pre, $hook, $args, $timestamp ) {
 
 	$value = (object) array(
 		'hook'      => $job->hook,
-		'timestamp' => $job->nextrun,
+		'timestamp' => $job->next_run,
 		'schedule'  => $job->schedule,
 		'args'      => $job->args,
 	);
@@ -461,7 +461,7 @@ function pre_get_ready_cron_jobs( $pre ) {
 	$crons   = array();
 
 	foreach ( $results as $result ) {
-		$timestamp = $result->nextrun;
+		$timestamp = $result->next_run;
 		$hook      = $result->hook;
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash.
 		$key   = md5( serialize( $result->args ) );
@@ -532,8 +532,8 @@ function schedule_event( $event, $wp_error = false ) {
 	$job          = new Job();
 	$job->hook    = $event->hook;
 	$job->site    = get_current_blog_id();
-	$job->nextrun = $event->timestamp;
-	$job->start   = $job->nextrun;
+	$job->next_run = $event->timestamp;
+	$job->start   = $job->next_run;
 	$job->args    = $event->args;
 
 	$result = $job->save();
@@ -593,8 +593,8 @@ function schedule_recurring_event( $event, $wp_error = false ) {
 	$job           = new Job();
 	$job->hook     = $event->hook;
 	$job->site     = get_current_blog_id();
-	$job->nextrun  = $event->timestamp;
-	$job->start    = $job->nextrun;
+	$job->next_run  = $event->timestamp;
+	$job->start    = $job->next_run;
 	$job->interval = $event->interval;
 	$job->args     = $event->args;
 	$job->schedule = $event->schedule;
@@ -724,7 +724,7 @@ function get_cron_array( $value ) {
 	$crons   = array();
 	$results = get_jobs();
 	foreach ( $results as $result ) {
-		$timestamp = $result->nextrun;
+		$timestamp = $result->next_run;
 		$hook      = $result->hook;
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash.
 		$key   = md5( serialize( $result->args ) );
