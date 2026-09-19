@@ -56,7 +56,7 @@ class Command extends WP_CLI_Command {
 		}
 		finally {
 			if ( $job->schedule ) {
-				wp_reschedule_event( $job->nextrun, $job->schedule, $job->hook, $job->args );
+				wp_reschedule_event( $job->next_run, $job->schedule, $job->hook, $job->args );
 				return;
 			}
 			// Mark Job as completed.
@@ -125,7 +125,7 @@ class Command extends WP_CLI_Command {
 			$assoc_args,
 			[
 				'format'  => 'table',
-				'fields'  => 'id,site,hook,start,nextrun,status',
+				'fields'  => 'id,site,hook,start,next_run,status',
 				'id'      => null,
 				'site'    => null,
 				'hook'    => null,
@@ -149,7 +149,7 @@ class Command extends WP_CLI_Command {
 			'hook',
 			'args',
 			'start',
-			'nextrun',
+			'next_run',
 			'interval',
 			'status',
 		];

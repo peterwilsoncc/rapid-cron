@@ -1,6 +1,6 @@
-# Typically, place in your /lib/systemd/system/ folder and sudo systemctl enable cavalcade.service
+# Typically, place in your /lib/systemd/system/ folder and sudo systemctl enable runner.service
 [Unit]
-Description=CavalcadeRunner
+Description=RapidCronRunner
 
 [Service]
 TimeoutStartSec=0
@@ -8,7 +8,7 @@ TimeoutStopSec=600
 Restart=always
 WorkingDirectory=/srv/www/webroot
 User=www-data
-ExecStart=/etc/cavalcade/bin/cavalcade
+ExecStart=/path/to/rapid-cron/bin/runner
 
 [Install]
 WantedBy=multi-user.target

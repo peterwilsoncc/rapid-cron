@@ -4,7 +4,7 @@
  *
  * @package           RapidCron
  *
- * phpcs:disable Squiz.Commenting.FunctionComment.ParamCommentFullStop
+ * phpcs:disable Squiz.Commenting.FunctionComment.ParamCommentFullStop, WordPress.DB.DirectDatabaseQuery, WordPress.DateTime.RestrictedFunctions.date_date
  */
 
 namespace PWCC\RapidCron;
@@ -57,7 +57,7 @@ class Job {
 	 *
 	 * @var string
 	 */
-	public $nextrun;
+	public $next_run;
 
 	/**
 	 * Job interval.
@@ -117,11 +117,12 @@ class Job {
 		global $wpdb;
 
 		$data = array(
-			'hook'    => $this->hook,
-			'site'    => $this->site,
-			'start'   => gmdate( DATE_FORMAT, $this->start ),
-			'nextrun' => gmdate( DATE_FORMAT, $this->nextrun ),
-			'args'    => serialize( $this->args ),
+			'hook'     => $this->hook,
+			'site'     => $this->site,
+			'start'    => gmdate( DATE_FORMAT, $this->start ),
+			'next_run' => gmdate( DATE_FORMAT, $this->next_run ),
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Args are always serialized.
+			'args'     => serialize( $this->args ),
 		);
 		if ( $new_status ) {
 			$data['status'] = $new_status;
@@ -249,11 +250,12 @@ class Job {
 		$job = new Job( $row->id );
 
 		// Populate the object with row values.
-		$job->site     = $row->site;
-		$job->hook     = $row->hook;
+		$job->site = $row->site;
+		$job->hook = $row->hook;
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- always used for cron args.
 		$job->args     = unserialize( $row->args );
 		$job->start    = mysql2date( 'G', $row->start );
-		$job->nextrun  = mysql2date( 'G', $row->nextrun );
+		$job->next_run = mysql2date( 'G', $row->next_run );
 		$job->interval = $row->interval;
 		$job->status   = $row->status;
 
@@ -453,39 +455,40 @@ class Job {
 		}
 
 		if ( ! is_null( $args['args'] ) ) {
-			$sql         .= ' AND args = %s';
+			$sql .= ' AND args = %s';
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- args are always serialized.
 			$sql_params[] = serialize( $args['args'] );
 		}
 
 		// Timestamp 'future' shortcut.
 		if ( 'future' === $args['timestamp'] ) {
-			$sql         .= ' AND nextrun > %s';
+			$sql         .= ' AND next_run > %s';
 			$sql_params[] = date( DATE_FORMAT );
 		}
 
 		// Timestamp past shortcut.
 		if ( 'past' === $args['timestamp'] ) {
-			$sql         .= ' AND nextrun <= %s';
+			$sql         .= ' AND next_run <= %s';
 			$sql_params[] = date( DATE_FORMAT );
 		}
 
 		// Timestamp array range.
 		if ( is_array( $args['timestamp'] ) && count( $args['timestamp'] ) === 2 ) {
-			$sql         .= ' AND nextrun BETWEEN %s AND %s';
+			$sql         .= ' AND next_run BETWEEN %s AND %s';
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'][0] );
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'][1] );
 		}
 
 		// Default integer timestamp.
 		if ( is_int( $args['timestamp'] ) ) {
-			$sql         .= ' AND nextrun = %s';
+			$sql         .= ' AND next_run = %s';
 			$sql_params[] = date( DATE_FORMAT, (int) $args['timestamp'] );
 		}
 
 		$sql       .= ' AND status IN(' . implode( ',', array_fill( 0, count( $args['statuses'] ), '%s' ) ) . ')';
 		$sql_params = array_merge( $sql_params, $args['statuses'] );
 
-		$sql .= ' ORDER BY nextrun';
+		$sql .= ' ORDER BY next_run';
 		if ( 'DESC' === $args['order'] ) {
 			$sql .= ' DESC';
 		} else {
@@ -499,14 +502,16 @@ class Job {
 
 		// Cache results.
 		$last_changed = wp_cache_get_last_changed( 'rapid-cron-jobs' );
-		$query_hash   = sha1( serialize( array( $sql, $sql_params ) ) );
-		$results      = wp_cache_get_salted(
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash generation.
+		$query_hash = sha1( serialize( array( $sql, $sql_params ) ) );
+		$results    = wp_cache_get_salted(
 			"jobs::{$query_hash}",
 			'rapid-cron-jobs',
 			$last_changed
 		);
 
 		if ( false === $results ) {
+			//phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- it is.
 			$results = $wpdb->get_results( $wpdb->prepare( $sql, $sql_params ) );
 			wp_cache_set_salted(
 				"jobs::{$query_hash}",
@@ -543,7 +548,7 @@ class Job {
 			'hook'     => '%s',
 			'args'     => '%s',
 			'start'    => '%s',
-			'nextrun'  => '%s',
+			'next_run' => '%s',
 			'interval' => '%d',
 			'schedule' => '%s',
 			'status'   => '%s',

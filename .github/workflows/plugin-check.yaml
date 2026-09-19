@@ -17,5 +17,5 @@ jobs:
     - name: Run plugin check
       uses: wordpress/plugin-check-action@v1
       with:
-        exclude-directories: ".github,bin,tests"
+        exclude-directories: ".github,bin,tests,runner"
         exclude-files: ".editorconfig,.gitattributes,.gitignore,.wordpress-version-checker.json,phpcs.xml.dist,phpunit.xml.dist,readme.md"

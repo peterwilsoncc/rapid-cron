@@ -3,6 +3,8 @@
  * Rapid Cron job storage
  *
  * @package           RapidCron
+ *
+ * phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, Squiz.Commenting.FunctionComment.ParamCommentFullStop
  */
 
 namespace PWCC\RapidCron\JobStorage;
@@ -30,7 +32,7 @@ function bootstrap() {
 /**
  * Get jobs for the specified site.
  *
- * @param int|stdClass $site Site ID or object (from {@see get_blog_details}) to get jobs for. Null for current site.
+ * @param int|\stdClass $site Site ID or object (from {@see get_blog_details}) to get jobs for. Null for current site.
  * @return Job[] List of jobs on the site.
  */
 function get_jobs( $site = null ) {
@@ -47,8 +49,8 @@ function get_jobs( $site = null ) {
  * Schedule an event with Rapid Cron.
  *
  * @param null|bool|WP_Error $pre Value to return instead. Default null to continue adding the event.
- * @param stdClass           $event {
- *               An object containing an event's data.
+ * @param \stdClass          $event {
+ *              An object containing an event's data.
  *
  *     @type string       $hook      Action hook to execute when the event is run.
  *     @type int          $timestamp Unix timestamp (UTC) for when to next run the event.
@@ -129,12 +131,12 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 
 	$schedule_match = $existing->schedule === $event->schedule;
 
-	if ( $schedule_match && $existing->interval === null && ! isset( $event->interval ) ) {
+	if ( $schedule_match && null === $existing->interval && ! isset( $event->interval ) ) {
 		// Unchanged or duplicate single event.
 		if ( $wp_error ) {
 			return new WP_Error(
 				'duplicate_event',
-				__( 'A duplicate event already exists.' )
+				__( 'A duplicate event already exists.', 'rapid-cron' )
 			);
 		}
 		return false;
@@ -143,7 +145,7 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'duplicate_event',
-				__( 'A duplicate event already exists.' )
+				__( 'A duplicate event already exists.', 'rapid-cron' )
 			);
 		}
 		return false;
@@ -164,8 +166,8 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
  * Reschedules a recurring event.
  *
  * @param null|bool|WP_Error $pre Value to return instead. Default null to continue adding the event.
- * @param stdClass           $event {
- *              An object containing an event's data.
+ * @param \stdClass          $event {
+ *             An object containing an event's data.
  *
  *     @type string       $hook      Action hook to execute when the event is run.
  *     @type int          $timestamp Unix timestamp (UTC) for when to next run the event.
@@ -238,7 +240,7 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		$timestamp = $now + ( $event->interval - ( ( $now - $event->timestamp ) % $event->interval ) );
 	}
 
-	$job->nextrun  = $timestamp;
+	$job->next_run = $timestamp;
 	$job->interval = $event->interval;
 	$job->schedule = $event->schedule;
 	$job->save( 'waiting' );
@@ -345,7 +347,7 @@ function pre_clear_scheduled_hook( $pre, $hook, $args, $wp_error = false ) {
 
 	global $wpdb;
 
-	// Clear all scheduled events for this site
+	// Clear all scheduled events for this site.
 	$table = Job::get_job_table();
 
 	$sql          = "DELETE FROM `{$table}` WHERE site = %d";
@@ -354,8 +356,8 @@ function pre_clear_scheduled_hook( $pre, $hook, $args, $wp_error = false ) {
 	$sql       .= ' AND id IN(' . implode( ',', array_fill( 0, count( $ids ), '%d' ) ) . ')';
 	$sql_params = array_merge( $sql_params, $ids );
 
-	$query   = $wpdb->prepare( $sql, $sql_params );
-	$results = $wpdb->query( $query );
+	//phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- it is.
+	$results = $wpdb->query( $wpdb->prepare( $sql, $sql_params ) );
 
 	// Flush the caches.
 	Job::flush_query_cache();
@@ -422,7 +424,7 @@ function pre_get_scheduled_event( $pre, $hook, $args, $timestamp ) {
 
 	$value = (object) array(
 		'hook'      => $job->hook,
-		'timestamp' => $job->nextrun,
+		'timestamp' => $job->next_run,
 		'schedule'  => $job->schedule,
 		'args'      => $job->args,
 	);
@@ -459,10 +461,11 @@ function pre_get_ready_cron_jobs( $pre ) {
 	$crons   = array();
 
 	foreach ( $results as $result ) {
-		$timestamp = $result->nextrun;
+		$timestamp = $result->next_run;
 		$hook      = $result->hook;
-		$key       = md5( serialize( $result->args ) );
-		$value     = array(
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash.
+		$key   = md5( serialize( $result->args ) );
+		$value = array(
 			'schedule' => $result->schedule,
 			'args'     => $result->args,
 			'_job'     => $result,
@@ -495,15 +498,15 @@ function pre_get_ready_cron_jobs( $pre ) {
  * this return value will hence think that the function has failed. Instead, we
  * hijack the save event in {@see update_cron} to simply skip saving to the DB.
  *
- * @param stdClass    $event {
- *     @param string      $hook Hook to fire
- *     @param int         $timestamp
- *     @param array       $args
- *     @param string|bool $schedule How often the event should occur (key from {@see wp_get_schedules})
- *     @param int|null    $interval Time in seconds between events (derived from `$schedule` value)
+ * @param \stdClass $event {
+ *     @var string      $hook Hook to fire
+ *     @var int         $timestamp
+ *     @var array       $args
+ *     @var string|bool $schedule How often the event should occur (key from {@see wp_get_schedules})
+ *     @var int|null    $interval Time in seconds between events (derived from `$schedule` value)
  *    }
- * @param bool        $wp_error Optional. Whether to return a WP_Error on failure. Default false.
- * @return bool|stdClass|WP_Error Event object passed in (as we aren't hijacking it). False or WP_Error if job not saved.
+ * @param bool      $wp_error Optional. Whether to return a WP_Error on failure. Default false.
+ * @return bool|\stdClass|WP_Error Event object passed in (as we aren't hijacking it). False or WP_Error if job not saved.
  */
 function schedule_event( $event, $wp_error = false ) {
 	// Make sure timestamp is a positive integer.
@@ -511,7 +514,7 @@ function schedule_event( $event, $wp_error = false ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'invalid_timestamp',
-				__( 'Event timestamp must be a valid Unix timestamp.' )
+				__( 'Event timestamp must be a valid Unix timestamp.', 'rapid-cron' )
 			);
 		}
 
@@ -526,30 +529,48 @@ function schedule_event( $event, $wp_error = false ) {
 		$event->timestamp = time();
 	}
 
-	$job          = new Job();
-	$job->hook    = $event->hook;
-	$job->site    = get_current_blog_id();
-	$job->nextrun = $event->timestamp;
-	$job->start   = $job->nextrun;
-	$job->args    = $event->args;
+	$job           = new Job();
+	$job->hook     = $event->hook;
+	$job->site     = get_current_blog_id();
+	$job->next_run = $event->timestamp;
+	$job->start    = $job->next_run;
+	$job->args     = $event->args;
 
 	$result = $job->save();
 	if ( ! $result && $wp_error ) {
 		return new WP_Error(
 			'could_not_set',
-			__( 'The cron event list could not be saved.' )
+			__( 'The cron event list could not be saved.', 'rapid-cron' )
 		);
 	}
 	return $result;
 }
 
+/**
+ * Schedule a recurring event with Rapid Cron
+ *
+ * Note on return value: Although `false` can be returned to shortcircuit the
+ * filter, this causes the calling function to return false. Plugins checking
+ * this return value will hence think that the function has failed. Instead, we
+ * hijack the save event in {@see update_cron} to simply skip saving to the DB.
+ *
+ * @param \stdClass $event {
+ *     @var string      $hook Hook to fire
+ *     @var int         $timestamp
+ *     @var array       $args
+ *     @var string|bool $schedule How often the event should occur (key from {@see wp_get_schedules})
+ *     @var int|null    $interval Time in seconds between events (derived from `$schedule` value)
+ *    }
+ * @param bool      $wp_error Optional. Whether to return a WP_Error on failure. Default false.
+ * @return bool|\stdClass|WP_Error Event object passed in (as we aren't hijacking it). False or WP_Error if job not saved.
+ */
 function schedule_recurring_event( $event, $wp_error = false ) {
 	// Make sure timestamp is a positive integer.
 	if ( ! is_numeric( $event->timestamp ) || $event->timestamp <= 0 ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'invalid_timestamp',
-				__( 'Event timestamp must be a valid Unix timestamp.' )
+				__( 'Event timestamp must be a valid Unix timestamp.', 'rapid-cron' )
 			);
 		}
 
@@ -562,7 +583,7 @@ function schedule_recurring_event( $event, $wp_error = false ) {
 		if ( $wp_error ) {
 			return new WP_Error(
 				'invalid_schedule',
-				__( 'Event schedule does not exist.' )
+				__( 'Event schedule does not exist.', 'rapid-cron' )
 			);
 		}
 
@@ -572,8 +593,8 @@ function schedule_recurring_event( $event, $wp_error = false ) {
 	$job           = new Job();
 	$job->hook     = $event->hook;
 	$job->site     = get_current_blog_id();
-	$job->nextrun  = $event->timestamp;
-	$job->start    = $job->nextrun;
+	$job->next_run = $event->timestamp;
+	$job->start    = $job->next_run;
 	$job->interval = $event->interval;
 	$job->args     = $event->args;
 	$job->schedule = $event->schedule;
@@ -582,7 +603,7 @@ function schedule_recurring_event( $event, $wp_error = false ) {
 	if ( ! $result && $wp_error ) {
 		return new WP_Error(
 			'could_not_set',
-			__( 'The cron event list could not be saved.' )
+			__( 'The cron event list could not be saved.', 'rapid-cron' )
 		);
 	}
 	return $result;
@@ -598,19 +619,19 @@ function schedule_recurring_event( $event, $wp_error = false ) {
  * @return array Existing value, to shortcircuit saving
  */
 function update_cron_array( $value, $old_value ) {
-	// Ignore the version
+	// Ignore the version.
 	$stored = $old_value;
 	unset( $stored['version'] );
 	unset( $value['version'] );
 
-	// Massage so we can compare
+	// Massage so we can compare.
 	$massager = function ( $crons ) {
 		$new = array();
 
 		foreach ( $crons as $timestamp => $hooks ) {
 			foreach ( $hooks as $hook => $groups ) {
 				foreach ( $groups as $key => $item ) {
-					// Workaround for https://core.trac.wordpress.org/ticket/33423
+					// Workaround for https://core.trac.wordpress.org/ticket/33423.
 					if ( 'wp_batch_split_terms' === $timestamp ) {
 						$timestamp = $hook;
 						$hook      = 'wp_batch_split_terms';
@@ -642,13 +663,13 @@ function update_cron_array( $value, $old_value ) {
 	// Any new or changed?
 	$added = array_diff_key( $new, $original );
 	foreach ( $added as $key => $item ) {
-		// Skip new ones, as these are handled in schedule_event/schedule_recurring_event
+		// Skip new ones, as these are handled in schedule_event/schedule_recurring_event.
 		if ( isset( $original[ $key ] ) ) {
-			// Skip existing events, we handle them below
+			// Skip existing events, we handle them below.
 			continue;
 		}
 
-		// Added new event
+		// Added new event.
 		$event = (object) array(
 			'hook'      => $item['hook'],
 			'timestamp' => $item['timestamp'],
@@ -669,18 +690,18 @@ function update_cron_array( $value, $old_value ) {
 
 		if ( isset( $new[ $key ] ) ) {
 			// Changed events: the only way to change an event without changing
-			// its key is to change the schedule or interval
+			// its key is to change the schedule or interval.
 			$job->interval = $new['value']['interval'];
 			$job->save();
 
 			continue;
 		}
 
-		// Remaining keys are removed values only
+		// Remaining keys are removed values only.
 		$job->delete();
 	}
 
-	// Cancel the DB update
+	// Cancel the DB update.
 	return $old_value;
 }
 
@@ -703,10 +724,11 @@ function get_cron_array( $value ) {
 	$crons   = array();
 	$results = get_jobs();
 	foreach ( $results as $result ) {
-		$timestamp = $result->nextrun;
+		$timestamp = $result->next_run;
 		$hook      = $result->hook;
-		$key       = md5( serialize( $result->args ) );
-		$value     = array(
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- used for hash.
+		$key   = md5( serialize( $result->args ) );
+		$value = array(
 			'schedule' => $result->schedule,
 			'args'     => $result->args,
 			'_job'     => $result,
@@ -716,7 +738,7 @@ function get_cron_array( $value ) {
 			$value['interval'] = $result->interval;
 		}
 
-		// Build the array up, urgh
+		// Build the array up.
 		if ( ! isset( $crons[ $timestamp ] ) ) {
 			$crons[ $timestamp ] = array();
 		}
@@ -728,7 +750,7 @@ function get_cron_array( $value ) {
 
 	ksort( $crons, SORT_NUMERIC );
 
-	// Set the version too
+	// Set the version too.
 	$crons['version'] = 2;
 
 	return $crons;
