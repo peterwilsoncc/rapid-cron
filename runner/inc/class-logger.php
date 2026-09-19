@@ -7,7 +7,7 @@ class Logger {
 	protected $table_prefix;
 
 	public function __construct( $db, $table_prefix ) {
-		$this->db = $db;
+		$this->db           = $db;
 		$this->table_prefix = $table_prefix;
 	}
 
@@ -20,7 +20,7 @@ class Logger {
 	}
 
 	protected function log_run( $job_id, $status, $message = '' ) {
-		$query = "INSERT INTO {$this->table_prefix}rapid_cron_logs (`job`, `status`, `timestamp`, `content`)";
+		$query  = "INSERT INTO {$this->table_prefix}rapid_cron_logs (`job`, `status`, `timestamp`, `content`)";
 		$query .= ' values( :job, :status, :timestamp, :content )';
 
 		$statement = $this->db->prepare( $query );

@@ -29,7 +29,7 @@ class Job {
 	protected static $blogs_table_exists;
 
 	public function __construct( $db, $table_prefix ) {
-		$this->db = $db;
+		$this->db           = $db;
 		$this->table_prefix = $table_prefix;
 	}
 
@@ -39,7 +39,7 @@ class Job {
 			return false;
 		}
 
-		$query = "SELECT domain, path FROM {$this->table_prefix}blogs";
+		$query  = "SELECT domain, path FROM {$this->table_prefix}blogs";
 		$query .= ' WHERE blog_id = :site';
 
 		$statement = $this->db->prepare( $query );
@@ -47,7 +47,7 @@ class Job {
 		$statement->execute();
 
 		$data = $statement->fetch( PDO::FETCH_ASSOC );
-		$url = $data['domain'] . $data['path'];
+		$url  = $data['domain'] . $data['path'];
 		return $url;
 	}
 
@@ -56,7 +56,7 @@ class Job {
 			return static::$blogs_table_exists;
 		}
 
-		$query = "SHOW TABLES LIKE '{$this->table_prefix}blogs'";
+		$query     = "SHOW TABLES LIKE '{$this->table_prefix}blogs'";
 		$statement = $this->db->prepare( $query );
 		$statement->execute();
 
@@ -75,7 +75,7 @@ class Job {
 	public function acquire_lock() {
 		return true;
 
-		$query = "UPDATE {$this->table_prefix}rapid_cron_jobs";
+		$query  = "UPDATE {$this->table_prefix}rapid_cron_jobs";
 		$query .= ' SET status = "running"';
 		$query .= ' WHERE status = "waiting" AND id = :id';
 
@@ -90,11 +90,11 @@ class Job {
 	public function mark_completed() {
 		return;
 
-		$data = [];
+		$data = array();
 		if ( $this->interval ) {
 			$this->reschedule();
 		} else {
-			$query = "UPDATE {$this->table_prefix}rapid_cron_jobs";
+			$query  = "UPDATE {$this->table_prefix}rapid_cron_jobs";
 			$query .= ' SET status = "completed"';
 			$query .= ' WHERE id = :id';
 
@@ -112,7 +112,7 @@ class Job {
 
 		$this->status = 'waiting';
 
-		$query = "UPDATE {$this->table_prefix}rapid_cron_jobs";
+		$query  = "UPDATE {$this->table_prefix}rapid_cron_jobs";
 		$query .= ' SET status = :status, nextrun = :nextrun';
 		$query .= ' WHERE id = :id';
 
@@ -130,7 +130,7 @@ class Job {
 	 */
 	public function mark_failed( $message = '' ) {
 		return;
-		$query = "UPDATE {$this->table_prefix}rapid_cron_jobs";
+		$query  = "UPDATE {$this->table_prefix}rapid_cron_jobs";
 		$query .= ' SET status = "failed"';
 		$query .= ' WHERE id = :id';
 

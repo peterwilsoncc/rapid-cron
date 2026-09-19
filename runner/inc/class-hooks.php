@@ -13,14 +13,14 @@ class Hooks {
 	 *
 	 * @var array<int, callable[]> Indexed array of priority => list of callbacks.
 	 */
-	protected $callbacks = [];
+	protected $callbacks = array();
 
 	/**
 	 * Register a callback for a hook.
 	 *
-	 * @param string $hook Hook to register callback for.
+	 * @param string   $hook Hook to register callback for.
 	 * @param callable $callback Function to call when hook is triggered.
-	 * @param int $priority Priority to register at.
+	 * @param int      $priority Priority to register at.
 	 */
 	public function register( $hook, $callback, $priority = 10 ) {
 		$this->callbacks[ $hook ][ $priority ][] = $callback;
@@ -31,8 +31,8 @@ class Hooks {
 	 * Run a hook's callbacks.
 	 *
 	 * @param string $hook Hook to run.
-	 * @param mixed $value Main value to pass.
-	 * @param mixed ...$args Other arguments to pass.
+	 * @param mixed  $value Main value to pass.
+	 * @param mixed  ...$args Other arguments to pass.
 	 * @return mixed Filtered value after running through callbacks.
 	 */
 	public function run( $hook, $value = null, ...$args ) {

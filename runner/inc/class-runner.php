@@ -11,7 +11,7 @@ use PDO;
 const LOOP_INTERVAL = 1.5;
 
 class Runner {
-	public $options = [];
+	public $options = array();
 
 	/**
 	 * Hook system for the Runner.
@@ -21,7 +21,7 @@ class Runner {
 	public $hooks;
 
 	protected $db;
-	protected $workers = [];
+	protected $workers = array();
 	protected $wp_path;
 	protected $table_prefix;
 
@@ -32,12 +32,12 @@ class Runner {
 	 */
 	protected static $instance;
 
-	public function __construct( $options = [] ) {
-		$defaults = [
+	public function __construct( $options = array() ) {
+		$defaults      = array(
 			'max_workers' => 1,
-		];
+		);
 		$this->options = array_merge( $defaults, $options );
-		$this->hooks = new Hooks();
+		$this->hooks   = new Hooks();
 	}
 
 	/**
@@ -90,12 +90,12 @@ class Runner {
 	}
 
 	public function run() {
-		$running = [];
+		$running = array();
 
 		// Handle SIGTERM calls
-		pcntl_signal( SIGTERM, [ $this, 'terminate' ] );
-		pcntl_signal( SIGINT, [ $this, 'terminate' ] );
-		pcntl_signal( SIGQUIT, [ $this, 'terminate' ] );
+		pcntl_signal( SIGTERM, array( $this, 'terminate' ) );
+		pcntl_signal( SIGINT, array( $this, 'terminate' ) );
+		pcntl_signal( SIGQUIT, array( $this, 'terminate' ) );
 
 		/**
 		 * Action before starting to run.
@@ -210,7 +210,7 @@ class Runner {
 		 * @param string $user User for the connection
 		 * @param string $password Password for the connection.
 		 */
-		$options = $this->hooks->run( 'Runner.connect_to_db.options', [], $dsn, DB_USER, DB_PASSWORD );
+		$options  = $this->hooks->run( 'Runner.connect_to_db.options', array(), $dsn, DB_USER, DB_PASSWORD );
 		$this->db = new PDO( $dsn, DB_USER, DB_PASSWORD, $options );
 
 		// Set it up just how we like it
@@ -234,7 +234,7 @@ class Runner {
 	 * @return stdClass|null
 	 */
 	protected function get_next_job() {
-		$query = "SELECT * FROM {$this->table_prefix}rapid_cron_jobs";
+		$query  = "SELECT * FROM {$this->table_prefix}rapid_cron_jobs";
 		$query .= ' WHERE nextrun < NOW() AND status = "waiting"';
 		$query .= ' ORDER BY nextrun ASC';
 		$query .= ' LIMIT 1';
@@ -249,7 +249,7 @@ class Runner {
 		$statement = $this->db->prepare( $query );
 		$statement->execute();
 
-		$data = $statement->fetchObject( __NAMESPACE__ . '\\Job', [ $this->db, $this->table_prefix ] );
+		$data = $statement->fetchObject( __NAMESPACE__ . '\\Job', array( $this->db, $this->table_prefix ) );
 		/**
 		 * Filter for the next job.
 		 *
@@ -271,16 +271,16 @@ class Runner {
 		$cwd = $this->wp_path;
 		printf( '[%d] Running %s (%s %s)' . PHP_EOL, $job->id, $command, $job->hook, $job->args );
 
-		$spec = [
+		$spec = array(
 			// We're intentionally avoiding adding a stdin pipe
 			// stdin 0 => null
 
 			// stdout
-			1 => [ 'pipe', 'w' ],
+			1 => array( 'pipe', 'w' ),
 
 			// stderr
-			2 => [ 'pipe', 'w' ],
-		];
+			2 => array( 'pipe', 'w' ),
+		);
 		$process = proc_open( $command, $spec, $pipes, $cwd );
 
 		if ( ! is_resource( $process ) ) {
@@ -292,7 +292,7 @@ class Runner {
 		stream_set_blocking( $pipes[1], false );
 		stream_set_blocking( $pipes[2], false );
 
-		$worker = new Worker( $process, $pipes, $job );
+		$worker          = new Worker( $process, $pipes, $job );
 		$this->workers[] = $worker;
 
 		printf( '[%d] Started worker' . PHP_EOL, $job->id );
@@ -335,7 +335,7 @@ class Runner {
 			return true;
 		}
 
-		$pipes_stdout = $pipes_stderr = [];
+		$pipes_stdout = $pipes_stderr = array();
 		foreach ( $this->workers as $id => $worker ) {
 			$pipes_stdout[ $id ] = $worker->pipes[1];
 			$pipes_stderr[ $id ] = $worker->pipes[2];

@@ -7,17 +7,17 @@ namespace PWCC\RapidCron\Runner;
 
 class Worker {
 	public $process;
-	public $pipes = [];
+	public $pipes = array();
 	public $job;
 
-	public $output = '';
+	public $output       = '';
 	public $error_output = '';
-	public $status = null;
+	public $status       = null;
 
 	public function __construct( $process, $pipes, Job $job ) {
 		$this->process = $process;
-		$this->pipes = $pipes;
-		$this->job = $job;
+		$this->pipes   = $pipes;
+		$this->job     = $job;
 	}
 
 	public function is_done() {
