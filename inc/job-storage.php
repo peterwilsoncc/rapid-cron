@@ -240,7 +240,7 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		$timestamp = $now + ( $event->interval - ( ( $now - $event->timestamp ) % $event->interval ) );
 	}
 
-	$job->next_run  = $timestamp;
+	$job->next_run = $timestamp;
 	$job->interval = $event->interval;
 	$job->schedule = $event->schedule;
 	$job->save( 'waiting' );
@@ -529,12 +529,12 @@ function schedule_event( $event, $wp_error = false ) {
 		$event->timestamp = time();
 	}
 
-	$job          = new Job();
-	$job->hook    = $event->hook;
-	$job->site    = get_current_blog_id();
+	$job           = new Job();
+	$job->hook     = $event->hook;
+	$job->site     = get_current_blog_id();
 	$job->next_run = $event->timestamp;
-	$job->start   = $job->next_run;
-	$job->args    = $event->args;
+	$job->start    = $job->next_run;
+	$job->args     = $event->args;
 
 	$result = $job->save();
 	if ( ! $result && $wp_error ) {
@@ -593,7 +593,7 @@ function schedule_recurring_event( $event, $wp_error = false ) {
 	$job           = new Job();
 	$job->hook     = $event->hook;
 	$job->site     = get_current_blog_id();
-	$job->next_run  = $event->timestamp;
+	$job->next_run = $event->timestamp;
 	$job->start    = $job->next_run;
 	$job->interval = $event->interval;
 	$job->args     = $event->args;

@@ -117,12 +117,12 @@ class Job {
 		global $wpdb;
 
 		$data = array(
-			'hook'    => $this->hook,
-			'site'    => $this->site,
-			'start'   => gmdate( DATE_FORMAT, $this->start ),
+			'hook'     => $this->hook,
+			'site'     => $this->site,
+			'start'    => gmdate( DATE_FORMAT, $this->start ),
 			'next_run' => gmdate( DATE_FORMAT, $this->next_run ),
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Args are always serialized.
-			'args'    => serialize( $this->args ),
+			'args'     => serialize( $this->args ),
 		);
 		if ( $new_status ) {
 			$data['status'] = $new_status;
@@ -255,7 +255,7 @@ class Job {
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- always used for cron args.
 		$job->args     = unserialize( $row->args );
 		$job->start    = mysql2date( 'G', $row->start );
-		$job->next_run  = mysql2date( 'G', $row->next_run );
+		$job->next_run = mysql2date( 'G', $row->next_run );
 		$job->interval = $row->interval;
 		$job->status   = $row->status;
 
@@ -548,7 +548,7 @@ class Job {
 			'hook'     => '%s',
 			'args'     => '%s',
 			'start'    => '%s',
-			'next_run'  => '%s',
+			'next_run' => '%s',
 			'interval' => '%d',
 			'schedule' => '%s',
 			'status'   => '%s',
