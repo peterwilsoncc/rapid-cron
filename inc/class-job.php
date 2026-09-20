@@ -125,6 +125,7 @@ class Job {
 			'args'     => serialize( $this->args ),
 		);
 		if ( $new_status ) {
+			$this->status   = $new_status;
 			$data['status'] = $new_status;
 		}
 

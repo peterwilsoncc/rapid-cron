@@ -243,6 +243,7 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 	$job->next_run = $timestamp;
 	$job->interval = $event->interval;
 	$job->schedule = $event->schedule;
+	$job->status   = 'waiting';
 	$job->save( 'waiting' );
 
 	// Rescheduled.
