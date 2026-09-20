@@ -58,10 +58,10 @@ class Command extends WP_CLI_Command {
 		finally {
 			if ( $job->schedule ) {
 				wp_reschedule_event( $job->next_run, $job->schedule, $job->hook, $job->args );
-				return;
+			} else {
+				// Mark Job as completed.
+				$job->complete();
 			}
-			// Mark Job as completed.
-			$job->complete();
 		}
 	}
 
