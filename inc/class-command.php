@@ -27,6 +27,7 @@ class Command extends WP_CLI_Command {
 			WP_CLI::error( 'Invalid job ID' );
 		}
 		$lock_obtained = $job->lock();
+		usleep( 10 );
 		if ( ! $lock_obtained ) {
 			\WP_CLI::warning( 'Job locked by another instance.', 'rapid-cron' );
 			return;
