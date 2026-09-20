@@ -28,6 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/inc/namespace.php';
+require_once __DIR__ . '/inc/clean-up.php';
 require_once __DIR__ . '/inc/class-job.php';
 require_once __DIR__ . '/inc/database.php';
 require_once __DIR__ . '/inc/job-storage.php';
