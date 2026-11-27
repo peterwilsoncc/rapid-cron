@@ -15,10 +15,15 @@ on:
         description: PHP version to test
         required: true
         type: string
+      test-mode:
+        description: Run the tests against Rapid Cron (rapid-cron) or against core for comparison (core)
+        required: false
+        type: string
+        default: rapid-cron
 
 jobs:
   phpunit:
-    name: WP ${{ inputs.wp-version }} / PHP ${{ inputs.php-version }}
+    name: WP ${{ inputs.wp-version }} / PHP ${{ inputs.php-version }} / ${{ inputs.test-mode }}
     runs-on: ubuntu-latest
     env:
       DB_DATABASE: wordpress_test
@@ -60,3 +65,4 @@ jobs:
       env:
         WP_TESTS_DIR: ${{ runner.temp }}/wordpress-tests-lib
         WP_CORE_DIR: ${{ runner.temp }}/wordpress
+        RAPID_CRON_TESTS_MODE: ${{ inputs.test-mode }}
