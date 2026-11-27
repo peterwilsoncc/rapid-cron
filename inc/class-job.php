@@ -111,6 +111,9 @@ class Job {
 	/**
 	 * Save a job to the database.
 	 *
+	 * Matching core, a recurring job can't be changed to a single job. If an
+	 * existing job has no interval, the stored interval and schedule are kept.
+	 *
 	 * @param string $new_status The new status of the job.
 	 */
 	public function save( $new_status = null ) {
@@ -135,7 +138,8 @@ class Job {
 			$data['schedule'] = '__fake_schedule' === $this->schedule ? null : $this->schedule;
 		}
 
-		if ( $this->is_created() ) {
+		$is_update = $this->is_created();
+		if ( $is_update ) {
 			$where  = array(
 				'id' => $this->id,
 			);
@@ -145,7 +149,15 @@ class Job {
 			$this->id = $wpdb->insert_id;
 		}
 
-		wp_cache_set( "job::{$this->id}", $this, 'rapid-cron-jobs' );
+		if ( $is_update && ! $this->is_recurring() ) {
+			/*
+			 * The stored job may still be recurring, so don't cache this
+			 * instance as a single job. It is loaded from the database next.
+			 */
+			wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
+		} else {
+			wp_cache_set( "job::{$this->id}", $this, 'rapid-cron-jobs' );
+		}
 		self::flush_query_cache();
 		return (bool) $result;
 	}

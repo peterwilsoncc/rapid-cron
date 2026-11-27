@@ -154,13 +154,14 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 		}
 		return false;
 	} else {
-		// Event has changed. Update it.
+		/*
+		 * Recurring event has changed. Update it.
+		 *
+		 * Only recurring events reach this point, so a single event becomes
+		 * recurring but a recurring event never becomes single, matching core.
+		 */
 		$existing->schedule = $event->schedule;
-		if ( isset( $event->interval ) ) {
-			$existing->interval = $event->interval;
-		} else {
-			$existing->interval = null;
-		}
+		$existing->interval = $event->interval;
 		$existing->save();
 		return true;
 	}
