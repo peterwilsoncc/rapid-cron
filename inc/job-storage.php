@@ -343,47 +343,67 @@ function pre_clear_scheduled_hook( $pre, $hook, $args, $wp_error = false ) {
 		return $pre;
 	}
 
-	// First check if the job exists already.
-	$jobs = Job::get_jobs_by_query(
-		array(
-			'hook'  => $hook,
-			'args'  => $args,
-			'limit' => 100,
-			'__raw' => true,
-		)
-	);
+	global $wpdb;
 
-	if ( is_wp_error( $jobs ) ) {
-		if ( $wp_error ) {
-			return $jobs;
-		}
-		return false;
+	// Validate as Job::get_jobs_by_query() does.
+	$error = null;
+	if ( ! is_string( $hook ) ) {
+		$error = new WP_Error( 'rapid_cron.job.invalid_hook_name' );
+	} elseif ( ! is_array( $args ) && ! is_null( $args ) ) {
+		$error = new WP_Error( 'rapid_cron.job.invalid_event_arguments' );
 	}
 
-	if ( empty( $jobs ) ) {
+	if ( $error ) {
+		return $wp_error ? $error : false;
+	}
+
+	/*
+	 * Match all waiting and running events for the hook on this site, using
+	 * the hook index. Null arguments match events regardless of arguments.
+	 */
+	$where  = ' WHERE site = %d AND hook = %s AND status IN(%s, %s)';
+	$params = array( Job::get_job_table(), get_current_blog_id(), $hook, 'waiting', 'running' );
+
+	if ( is_array( $args ) ) {
+		$where .= ' AND args = %s';
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- args are always serialized.
+		$params[] = serialize( $args );
+	}
+
+	// Get the IDs first so the job caches can be cleared.
+	$sql = 'SELECT id FROM %i' . $where;
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching -- it is prepared, and must not be cached.
+	$ids = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
+
+	if ( empty( $ids ) ) {
 		return 0;
 	}
 
-	$ids = wp_list_pluck( $jobs, 'id' );
-
-	global $wpdb;
-
-	// Clear all scheduled events for this site.
-	$table = Job::get_job_table();
-
-	$sql          = "DELETE FROM `{$table}` WHERE site = %d";
-	$sql_params[] = get_current_blog_id();
-
-	$sql       .= ' AND id IN(' . implode( ',', array_fill( 0, count( $ids ), '%d' ) ) . ')';
-	$sql_params = array_merge( $sql_params, $ids );
-
-	//phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- it is.
-	$results = $wpdb->query( $wpdb->prepare( $sql, $sql_params ) );
+	// Delete them all in one query, without a limit, to clear every event as core does.
+	$sql = 'DELETE FROM %i' . $where;
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching -- it is prepared.
+	$results = $wpdb->query( $wpdb->prepare( $sql, $params ) );
 
 	// Flush the caches.
 	Job::flush_query_cache();
-	foreach ( $ids as $id ) {
-		wp_cache_delete( "job::{$id}", 'rapid-cron-jobs' );
+	wp_cache_delete_multiple(
+		array_map(
+			function ( $id ) {
+				return "job::{$id}";
+			},
+			$ids
+		),
+		'rapid-cron-jobs'
+	);
+
+	if ( false === $results ) {
+		if ( $wp_error ) {
+			return new WP_Error(
+				'could_not_set',
+				__( 'The cron event list could not be saved.', 'rapid-cron' )
+			);
+		}
+		return false;
 	}
 
 	return $results;
