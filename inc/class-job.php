@@ -131,7 +131,8 @@ class Job {
 
 		if ( $this->is_recurring() ) {
 			$data['interval'] = $this->interval;
-			$data['schedule'] = $this->schedule;
+			// The fake schedule is derived from the interval when the job is loaded, so isn't stored.
+			$data['schedule'] = '__fake_schedule' === $this->schedule ? null : $this->schedule;
 		}
 
 		if ( $this->is_created() ) {

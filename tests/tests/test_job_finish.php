@@ -104,9 +104,12 @@ class Test_Job_Finish extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test recurring jobs that can't be rescheduled are marked failed.
+	 * Test recurring jobs whose schedule has been removed are rescheduled
+	 * using their stored interval.
 	 */
 	public function test_finish_recurring_job_with_missing_schedule() {
+		global $wpdb;
+
 		$add_schedule = function ( $schedules ) {
 			$schedules['rapid_cron_test'] = array(
 				'interval' => 5 * MINUTE_IN_SECONDS,
@@ -119,6 +122,27 @@ class Test_Job_Finish extends WP_UnitTestCase {
 		wp_schedule_event( time(), 'rapid_cron_test', self::HOOK );
 		$job = $this->get_running_job();
 		remove_filter( 'cron_schedules', $add_schedule );
+
+		$this->assertTrue( $job->finish(), 'Finishing the job should succeed.' );
+
+		$job = $this->get_fresh_job( $job->id );
+		$this->assertSame( 'waiting', $job->status, 'The job should be waiting.' );
+		$this->assertEqualsWithDelta( time() + 5 * MINUTE_IN_SECONDS, (int) $job->next_run, 2, 'The job should be rescheduled using its stored interval.' );
+		$this->assertSame( (int) $job->next_run, wp_next_scheduled( self::HOOK ), 'The rescheduled job should be reported as scheduled.' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$stored_schedule = $wpdb->get_var( $wpdb->prepare( 'SELECT schedule FROM %i WHERE id = %d', Job::get_job_table(), $job->id ) );
+		$this->assertNull( $stored_schedule, 'The unregistered schedule name should not be stored.' );
+	}
+
+	/**
+	 * Test recurring jobs that can't be rescheduled are marked failed.
+	 */
+	public function test_finish_recurring_job_that_cannot_be_rescheduled() {
+		wp_schedule_event( time(), 'hourly', self::HOOK );
+		$job = $this->get_running_job();
+
+		add_filter( 'pre_reschedule_event', '__return_false', 5 );
 
 		$this->assertTrue( $job->finish(), 'Failing the job should succeed.' );
 		$this->assertSame( 'failed', $this->get_fresh_job( $job->id )->status, 'The job should be failed.' );
