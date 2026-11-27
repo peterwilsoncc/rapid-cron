@@ -43,6 +43,28 @@ function register_cli_commands() {
 }
 
 /**
+ * Get the WP Cron schedule names by interval.
+ *
+ * This is used as a fallback when Rapid Cron does not have the
+ * schedule name stored in the database to make a best guess at
+ * the schedule's name.
+ *
+ * Interval collisions caused by two plugins registering the same
+ * interval with different names are unified into a single name.
+ *
+ * @return array Cron schedule names indexed by interval.
+ */
+function get_schedules_by_interval() {
+	$schedules = array();
+
+	foreach ( wp_get_schedules() as $name => $schedule ) {
+		$schedules[ (int) $schedule['interval'] ] = $name;
+	}
+
+	return $schedules;
+}
+
+/**
  * Helper function to get a schedule name from a specific interval.
  *
  * @param int $interval Cron schedule interval.

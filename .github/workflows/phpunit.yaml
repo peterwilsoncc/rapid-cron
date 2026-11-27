@@ -32,6 +32,12 @@ jobs:
           wp_php["7.0"]="7.4 8.0 8.1 8.2 8.3 8.4 8.5"
           wp_php["6.9"]="7.4 8.0 8.1 8.2 8.3 8.4 8.5"
 
+          # Run the tests against core for comparison, and against Rapid Cron.
+          # Key: mode passed to the tests; value: label shown in the job name.
+          declare -A test_modes
+          test_modes["core"]="Core"
+          test_modes["rapid-cron"]="Rapid Cron"
+
           matrix='{"include":[]}'
           mapfile -t wp_versions < <(
             {
@@ -40,13 +46,18 @@ jobs:
             }
           )
 
+          # Group by WP version then mode so each sidebar folder's PHP versions are together.
           for wp_version in "${wp_versions[@]}"; do
-            for php_version in ${wp_php[$wp_version]}; do
-              matrix=$(jq \
-                --arg wp "$wp_version" \
-                --arg php "$php_version" \
-                '.include += [{"wp-version": $wp, "php-version": $php}]' \
-                <<< "$matrix")
+            for test_mode in core rapid-cron; do
+              for php_version in ${wp_php[$wp_version]}; do
+                matrix=$(jq \
+                  --arg wp "$wp_version" \
+                  --arg php "$php_version" \
+                  --arg mode "$test_mode" \
+                  --arg label "${test_modes[$test_mode]}" \
+                  '.include += [{"wp-version": $wp, "php-version": $php, "test-mode": $mode, "test-mode-label": $label}]' \
+                  <<< "$matrix")
+              done
             done
           done
 
@@ -54,7 +65,8 @@ jobs:
 
   phpunit:
     needs: build-matrix
-    name: WP ${{ matrix.wp-version }} / PHP ${{ matrix.php-version }}
+    # The sidebar folder. Avoid slashes, which GitHub treats as separators.
+    name: WP ${{ matrix.wp-version }} (${{ matrix.test-mode-label }})
     strategy:
       matrix: ${{ fromJSON(needs.build-matrix.outputs.matrix) }}
       fail-fast: false
@@ -62,6 +74,7 @@ jobs:
     with:
       wp-version: ${{ matrix.wp-version }}
       php-version: ${{ matrix.php-version }}
+      test-mode: ${{ matrix.test-mode }}
 
   required-status-checks:
     # This should be configured as the required status check in branch protection rules

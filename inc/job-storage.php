@@ -131,8 +131,12 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 
 	$schedule_match = $existing->schedule === $event->schedule;
 
-	if ( $schedule_match && null === $existing->interval && ! isset( $event->interval ) ) {
-		// Unchanged or duplicate single event.
+	if ( false === $event->schedule ) {
+		/*
+		 * Duplicate single event. Matching core, a single event duplicates any
+		 * event, single or recurring, with the same hook and arguments within
+		 * the ten minute window. Recurring events are left unchanged.
+		 */
 		if ( $wp_error ) {
 			return new WP_Error(
 				'duplicate_event',
@@ -150,13 +154,14 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 		}
 		return false;
 	} else {
-		// Event has changed. Update it.
+		/*
+		 * Recurring event has changed. Update it.
+		 *
+		 * Only recurring events reach this point, so a single event becomes
+		 * recurring but a recurring event never becomes single, matching core.
+		 */
 		$existing->schedule = $event->schedule;
-		if ( isset( $event->interval ) ) {
-			$existing->interval = $event->interval;
-		} else {
-			$existing->interval = null;
-		}
+		$existing->interval = $event->interval;
 		$existing->save();
 		return true;
 	}
@@ -184,6 +189,11 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		return $pre;
 	}
 
+	/*
+	 * Match core, which only reschedules events with a registered schedule.
+	 * An event whose schedule has been removed is dropped by core, so its
+	 * job is marked failed when it finishes.
+	 */
 	$schedules = wp_get_schedules();
 
 	if ( ! isset( $schedules[ $event->schedule ] ) ) {
@@ -222,28 +232,19 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 
 	$job = $jobs[0];
 
-	// Now we assume something is wrong (single job?) and fail to reschedule.
-	if ( 0 === $event->interval && 0 === $job->interval ) {
-		if ( $wp_error ) {
-			return new WP_Error(
-				'invalid_schedule',
-				__( 'Event schedule does not exist.', 'rapid-cron' )
-			);
-		}
-		return false;
-	}
+	// Match core: use the registered schedule's interval.
+	$interval = (int) $schedules[ $event->schedule ]['interval'];
 
 	$now = time();
 	if ( $event->timestamp >= $now ) {
-		$timestamp = $now + $event->interval;
+		$timestamp = $now + $interval;
 	} else {
-		$timestamp = $now + ( $event->interval - ( ( $now - $event->timestamp ) % $event->interval ) );
+		$timestamp = $now + ( $interval - ( ( $now - $event->timestamp ) % $interval ) );
 	}
 
 	$job->next_run = $timestamp;
-	$job->interval = $event->interval;
+	$job->interval = $interval;
 	$job->schedule = $event->schedule;
-	$job->status   = 'waiting';
 	$job->save( 'waiting' );
 
 	// Rescheduled.
@@ -294,8 +295,21 @@ function pre_unschedule_event( $pre, $timestamp, $hook, $args, $wp_error = false
 
 	$job = $jobs[0];
 
-	// Delete it.
-	$job->delete();
+	/*
+	 * Delete it, including running jobs, so a job that unschedules itself
+	 * isn't rescheduled when it finishes. This matches core, which
+	 * reschedules recurring events before running them so unscheduling the
+	 * next event stops them.
+	 */
+	if ( true !== $job->delete( array( 'delete_running' => true ) ) ) {
+		if ( $wp_error ) {
+			return new WP_Error(
+				'could_not_set',
+				__( 'The cron event list could not be saved.', 'rapid-cron' )
+			);
+		}
+		return false;
+	}
 
 	return true;
 }
@@ -323,47 +337,67 @@ function pre_clear_scheduled_hook( $pre, $hook, $args, $wp_error = false ) {
 		return $pre;
 	}
 
-	// First check if the job exists already.
-	$jobs = Job::get_jobs_by_query(
-		array(
-			'hook'  => $hook,
-			'args'  => $args,
-			'limit' => 100,
-			'__raw' => true,
-		)
-	);
+	global $wpdb;
 
-	if ( is_wp_error( $jobs ) ) {
-		if ( $wp_error ) {
-			return $jobs;
-		}
-		return false;
+	// Validate as Job::get_jobs_by_query() does.
+	$error = null;
+	if ( ! is_string( $hook ) ) {
+		$error = new WP_Error( 'rapid_cron.job.invalid_hook_name' );
+	} elseif ( ! is_array( $args ) && ! is_null( $args ) ) {
+		$error = new WP_Error( 'rapid_cron.job.invalid_event_arguments' );
 	}
 
-	if ( empty( $jobs ) ) {
+	if ( $error ) {
+		return $wp_error ? $error : false;
+	}
+
+	/*
+	 * Match all waiting and running events for the hook on this site, using
+	 * the hook index. Null arguments match events regardless of arguments.
+	 */
+	$where  = ' WHERE site = %d AND hook = %s AND status IN(%s, %s)';
+	$params = array( Job::get_job_table(), get_current_blog_id(), $hook, 'waiting', 'running' );
+
+	if ( is_array( $args ) ) {
+		$where .= ' AND args = %s';
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- args are always serialized.
+		$params[] = serialize( $args );
+	}
+
+	// Get the IDs first so the job caches can be cleared.
+	$sql = 'SELECT id FROM %i' . $where;
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching -- it is prepared, and must not be cached.
+	$ids = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
+
+	if ( empty( $ids ) ) {
 		return 0;
 	}
 
-	$ids = wp_list_pluck( $jobs, 'id' );
-
-	global $wpdb;
-
-	// Clear all scheduled events for this site.
-	$table = Job::get_job_table();
-
-	$sql          = "DELETE FROM `{$table}` WHERE site = %d";
-	$sql_params[] = get_current_blog_id();
-
-	$sql       .= ' AND id IN(' . implode( ',', array_fill( 0, count( $ids ), '%d' ) ) . ')';
-	$sql_params = array_merge( $sql_params, $ids );
-
-	//phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- it is.
-	$results = $wpdb->query( $wpdb->prepare( $sql, $sql_params ) );
+	// Delete them all in one query, without a limit, to clear every event as core does.
+	$sql = 'DELETE FROM %i' . $where;
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching -- it is prepared.
+	$results = $wpdb->query( $wpdb->prepare( $sql, $params ) );
 
 	// Flush the caches.
 	Job::flush_query_cache();
-	foreach ( $ids as $id ) {
-		wp_cache_delete( "job::{$id}", 'rapid-cron-jobs' );
+	wp_cache_delete_multiple(
+		array_map(
+			function ( $id ) {
+				return "job::{$id}";
+			},
+			$ids
+		),
+		'rapid-cron-jobs'
+	);
+
+	if ( false === $results ) {
+		if ( $wp_error ) {
+			return new WP_Error(
+				'could_not_set',
+				__( 'The cron event list could not be saved.', 'rapid-cron' )
+			);
+		}
+		return false;
 	}
 
 	return $results;
@@ -638,7 +672,16 @@ function update_cron_array( $value, $old_value ) {
 						$hook      = 'wp_batch_split_terms';
 					}
 
+					/*
+					 * Include the schedule and interval so a changed event
+					 * is treated as the old job being removed and a new
+					 * event being added.
+					 */
 					$real_key = $timestamp . $hook . $key;
+
+					if ( ! empty( $item['schedule'] ) ) {
+						$real_key .= $item['schedule'];
+					}
 
 					if ( isset( $item['interval'] ) ) {
 						$real_key .= (string) $item['interval'];
@@ -661,16 +704,8 @@ function update_cron_array( $value, $old_value ) {
 	$original = $massager( $stored );
 	$new      = $massager( $value );
 
-	// Any new or changed?
-	$added = array_diff_key( $new, $original );
-	foreach ( $added as $key => $item ) {
-		// Skip new ones, as these are handled in schedule_event/schedule_recurring_event.
-		if ( isset( $original[ $key ] ) ) {
-			// Skip existing events, we handle them below.
-			continue;
-		}
-
-		// Added new event.
+	// Add new and changed events.
+	foreach ( array_diff_key( $new, $original ) as $item ) {
 		$event = (object) array(
 			'hook'      => $item['hook'],
 			'timestamp' => $item['timestamp'],
@@ -684,22 +719,12 @@ function update_cron_array( $value, $old_value ) {
 		schedule_event( $event );
 	}
 
-	// Any removed?
-	$removed = array_diff_key( $original, $new );
-	foreach ( $removed as $key => $item ) {
-		$job = $item['value']['_job'];
-
-		if ( isset( $new[ $key ] ) ) {
-			// Changed events: the only way to change an event without changing
-			// its key is to change the schedule or interval.
-			$job->interval = $new['value']['interval'];
-			$job->save();
-
-			continue;
-		}
-
-		// Remaining keys are removed values only.
-		$job->delete();
+	/*
+	 * Delete removed and changed events, including running jobs, matching
+	 * core, where the new cron array replaces the stored one.
+	 */
+	foreach ( array_diff_key( $original, $new ) as $item ) {
+		$item['value']['_job']->delete( array( 'delete_running' => true ) );
 	}
 
 	// Cancel the DB update.
