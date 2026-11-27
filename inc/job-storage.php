@@ -672,7 +672,16 @@ function update_cron_array( $value, $old_value ) {
 						$hook      = 'wp_batch_split_terms';
 					}
 
+					/*
+					 * Include the schedule and interval so a changed event
+					 * is treated as the old job being removed and a new
+					 * event being added.
+					 */
 					$real_key = $timestamp . $hook . $key;
+
+					if ( ! empty( $item['schedule'] ) ) {
+						$real_key .= $item['schedule'];
+					}
 
 					if ( isset( $item['interval'] ) ) {
 						$real_key .= (string) $item['interval'];
@@ -695,16 +704,8 @@ function update_cron_array( $value, $old_value ) {
 	$original = $massager( $stored );
 	$new      = $massager( $value );
 
-	// Any new or changed?
-	$added = array_diff_key( $new, $original );
-	foreach ( $added as $key => $item ) {
-		// Skip new ones, as these are handled in schedule_event/schedule_recurring_event.
-		if ( isset( $original[ $key ] ) ) {
-			// Skip existing events, we handle them below.
-			continue;
-		}
-
-		// Added new event.
+	// Add new and changed events.
+	foreach ( array_diff_key( $new, $original ) as $item ) {
 		$event = (object) array(
 			'hook'      => $item['hook'],
 			'timestamp' => $item['timestamp'],
@@ -718,22 +719,12 @@ function update_cron_array( $value, $old_value ) {
 		schedule_event( $event );
 	}
 
-	// Any removed?
-	$removed = array_diff_key( $original, $new );
-	foreach ( $removed as $key => $item ) {
-		$job = $item['value']['_job'];
-
-		if ( isset( $new[ $key ] ) ) {
-			// Changed events: the only way to change an event without changing
-			// its key is to change the schedule or interval.
-			$job->interval = $new['value']['interval'];
-			$job->save();
-
-			continue;
-		}
-
-		// Remaining keys are removed values only.
-		$job->delete();
+	/*
+	 * Delete removed and changed events, including running jobs, matching
+	 * core, where the new cron array replaces the stored one.
+	 */
+	foreach ( array_diff_key( $original, $new ) as $item ) {
+		$item['value']['_job']->delete( array( 'delete_running' => true ) );
 	}
 
 	// Cancel the DB update.
