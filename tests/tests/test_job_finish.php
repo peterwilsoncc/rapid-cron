@@ -8,12 +8,15 @@
 namespace PWCC\RapidCron\Tests;
 
 use PWCC\RapidCron\Job;
-use WP_UnitTestCase;
 
 /**
  * Test Job::finish().
+ *
+ * Job::finish() is run by Rapid Cron's worker, which core doesn't have.
+ *
+ * @group rapid-cron-internals
  */
-class Test_Job_Finish extends WP_UnitTestCase {
+class Test_Job_Finish extends TestCase {
 
 	const HOOK = 'rapid_cron_test_hook';
 

@@ -8,12 +8,11 @@
 namespace PWCC\RapidCron\Tests;
 
 use PWCC\RapidCron\Job;
-use WP_UnitTestCase;
 
 /**
  * Test pre_clear_scheduled_hook() and pre_unschedule_hook().
  */
-class Test_Clear_Scheduled_Hook extends WP_UnitTestCase {
+class Test_Clear_Scheduled_Hook extends TestCase {
 
 	const HOOK = 'rapid_cron_test_hook';
 
@@ -23,48 +22,28 @@ class Test_Clear_Scheduled_Hook extends WP_UnitTestCase {
 	const EVENT_COUNT = 105;
 
 	/**
-	 * Get all waiting and running jobs for the test hook.
+	 * Schedule more than 100 single events with the same arguments.
 	 *
-	 * @return Job[] Jobs for the test hook.
+	 * The events are spaced out so they aren't duplicates.
+	 *
+	 * @param array $args Event arguments.
 	 */
-	private function get_hook_jobs() {
-		return Job::get_jobs_by_query(
-			array(
-				'hook'  => self::HOOK,
-				'args'  => null,
-				'limit' => 0,
-			)
-		);
+	private function schedule_matching_events( $args ) {
+		for ( $i = 0; $i < self::EVENT_COUNT; $i++ ) {
+			$this->assertTrue( wp_schedule_single_event( time() + $i * HOUR_IN_SECONDS, self::HOOK, $args ), "Event {$i} should be scheduled." );
+		}
 	}
 
 	/**
 	 * Test clearing a hook with arguments removes every matching event.
 	 */
 	public function test_clear_scheduled_hook_clears_all_events() {
-		// Space the events out so they aren't duplicates.
-		for ( $i = 0; $i < self::EVENT_COUNT; $i++ ) {
-			$this->assertTrue( wp_schedule_single_event( time() + $i * HOUR_IN_SECONDS, self::HOOK, array( 'match' ) ), "Event {$i} should be scheduled." );
-		}
+		$this->schedule_matching_events( array( 'match' ) );
 		wp_schedule_single_event( time(), self::HOOK, array( 'other' ) );
 
-		// Prime the job cache.
-		$jobs = $this->get_hook_jobs();
-		$ids  = wp_list_pluck( $jobs, 'id' );
-		foreach ( $ids as $id ) {
-			Job::get( $id );
-		}
-
 		$this->assertSame( self::EVENT_COUNT, wp_clear_scheduled_hook( self::HOOK, array( 'match' ) ), 'Every matching event should be cleared.' );
-		$this->assertFalse( wp_next_scheduled( self::HOOK, array( 'match' ) ), 'No matching events should remain.' );
-		$this->assertNotFalse( wp_next_scheduled( self::HOOK, array( 'other' ) ), 'Events with other arguments should remain.' );
-
-		$remaining = 0;
-		foreach ( $ids as $id ) {
-			if ( Job::get( $id ) ) {
-				++$remaining;
-			}
-		}
-		$this->assertSame( 1, $remaining, 'Only the job with other arguments should remain in the cache.' );
+		$this->assertSame( 0, $this->count_events( self::HOOK, array( 'match' ) ), 'No matching events should remain.' );
+		$this->assertSame( 1, $this->count_events( self::HOOK, array( 'other' ) ), 'Events with other arguments should remain.' );
 	}
 
 	/**
@@ -78,20 +57,66 @@ class Test_Clear_Scheduled_Hook extends WP_UnitTestCase {
 		wp_schedule_single_event( time(), 'rapid_cron_other_hook' );
 
 		$this->assertSame( self::EVENT_COUNT + 1, wp_unschedule_hook( self::HOOK ), 'Every event for the hook should be cleared.' );
-		$this->assertEmpty( $this->get_hook_jobs(), 'No events for the hook should remain.' );
-		$this->assertNotFalse( wp_next_scheduled( 'rapid_cron_other_hook' ), 'Events for other hooks should remain.' );
+		$this->assertSame( 0, $this->count_events( self::HOOK ), 'No events for the hook should remain.' );
+		$this->assertSame( 1, $this->count_events( 'rapid_cron_other_hook' ), 'Events for other hooks should remain.' );
+	}
+
+	/**
+	 * Test clearing a hook with no events.
+	 */
+	public function test_clear_scheduled_hook_without_events() {
+		$this->assertSame( 0, wp_clear_scheduled_hook( self::HOOK ), 'Clearing a hook without events should return 0.' );
+		$this->assertSame( 0, wp_unschedule_hook( self::HOOK ), 'Unscheduling a hook without events should return 0.' );
+	}
+
+	/**
+	 * Test clearing a hook clears the cached jobs.
+	 *
+	 * @group rapid-cron-internals
+	 */
+	public function test_clear_scheduled_hook_clears_job_cache() {
+		$this->schedule_matching_events( array( 'match' ) );
+		wp_schedule_single_event( time(), self::HOOK, array( 'other' ) );
+
+		// Prime the job cache.
+		$ids = wp_list_pluck(
+			Job::get_jobs_by_query(
+				array(
+					'hook'  => self::HOOK,
+					'args'  => null,
+					'limit' => 0,
+				)
+			),
+			'id'
+		);
+		foreach ( $ids as $id ) {
+			Job::get( $id );
+		}
+
+		wp_clear_scheduled_hook( self::HOOK, array( 'match' ) );
+
+		$this->assertCount( 1, array_filter( array_map( array( Job::class, 'get' ), $ids ) ), 'Only the job with other arguments should remain in the cache.' );
 	}
 
 	/**
 	 * Test running jobs are cleared, but completed and failed jobs are kept.
+	 *
+	 * Core has no completed or failed events.
+	 *
+	 * @group rapid-cron-internals
 	 */
 	public function test_clear_scheduled_hook_statuses() {
 		wp_schedule_single_event( time(), self::HOOK, array( 'running' ) );
 		wp_schedule_single_event( time(), self::HOOK, array( 'completed' ) );
 		wp_schedule_single_event( time(), self::HOOK, array( 'failed' ) );
 
-		$jobs = array();
-		foreach ( $this->get_hook_jobs() as $job ) {
+		$jobs  = array();
+		$query = array(
+			'hook'  => self::HOOK,
+			'args'  => null,
+			'limit' => 0,
+		);
+		foreach ( Job::get_jobs_by_query( $query ) as $job ) {
 			$jobs[ $job->args[0] ] = $job;
 		}
 		$this->assertTrue( $jobs['running']->lock(), 'The running job should lock.' );
@@ -102,13 +127,5 @@ class Test_Clear_Scheduled_Hook extends WP_UnitTestCase {
 		$this->assertNull( Job::get( $jobs['running']->id ), 'The running job should be deleted.' );
 		$this->assertInstanceOf( Job::class, Job::get( $jobs['completed']->id ), 'The completed job should be kept.' );
 		$this->assertInstanceOf( Job::class, Job::get( $jobs['failed']->id ), 'The failed job should be kept.' );
-	}
-
-	/**
-	 * Test clearing a hook with no events.
-	 */
-	public function test_clear_scheduled_hook_without_events() {
-		$this->assertSame( 0, wp_clear_scheduled_hook( self::HOOK ), 'Clearing a hook without events should return 0.' );
-		$this->assertSame( 0, wp_unschedule_hook( self::HOOK ), 'Unscheduling a hook without events should return 0.' );
 	}
 }

@@ -9,28 +9,13 @@ namespace PWCC\RapidCron\Tests;
 
 use PWCC\RapidCron\Job;
 use WP_Error;
-use WP_UnitTestCase;
 
 /**
  * Test pre_schedule_event().
  */
-class Test_Schedule_Event extends WP_UnitTestCase {
+class Test_Schedule_Event extends TestCase {
 
 	const HOOK = 'rapid_cron_test_hook';
-
-	/**
-	 * Get all waiting and running jobs for the test hook.
-	 *
-	 * @return Job[] Jobs for the test hook.
-	 */
-	private function get_hook_jobs() {
-		return Job::get_jobs_by_query(
-			array(
-				'hook'  => self::HOOK,
-				'limit' => 0,
-			)
-		);
-	}
 
 	/**
 	 * Assert the result of scheduling a duplicate event.
@@ -56,24 +41,15 @@ class Test_Schedule_Event extends WP_UnitTestCase {
 	 */
 	public function test_single_event_does_not_replace_recurring_event( $wp_error ) {
 		$this->assertTrue( wp_schedule_event( time(), 'hourly', self::HOOK ), 'The recurring event should be scheduled.' );
-		$jobs = $this->get_hook_jobs();
-		$this->assertCount( 1, $jobs, 'One job should be scheduled.' );
-		$id = $jobs[0]->id;
 
 		$result = wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::HOOK, array(), $wp_error );
 
 		$this->assert_duplicate_event( $result, $wp_error );
-		$this->assertCount( 1, $this->get_hook_jobs(), 'No single event should be added.' );
+		$this->assertSame( 1, $this->count_events( self::HOOK ), 'No single event should be added.' );
 
-		// The cached job is used by the worker, so check it before the database.
-		$job = Job::get( $id );
-		$this->assertSame( 'hourly', $job->schedule, 'The cached job should keep its schedule.' );
-		$this->assertEquals( HOUR_IN_SECONDS, $job->interval, 'The cached job should keep its interval.' );
-
-		wp_cache_delete( "job::{$id}", 'rapid-cron-jobs' );
-		$job = Job::get( $id );
-		$this->assertSame( 'hourly', $job->schedule, 'The stored job should keep its schedule.' );
-		$this->assertEquals( HOUR_IN_SECONDS, $job->interval, 'The stored job should keep its interval.' );
+		$event = wp_get_scheduled_event( self::HOOK );
+		$this->assertSame( 'hourly', $event->schedule, 'The event should keep its schedule.' );
+		$this->assertEquals( HOUR_IN_SECONDS, $event->interval, 'The event should keep its interval.' );
 	}
 
 	/**
@@ -89,7 +65,7 @@ class Test_Schedule_Event extends WP_UnitTestCase {
 		$result = wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::HOOK, array(), $wp_error );
 
 		$this->assert_duplicate_event( $result, $wp_error );
-		$this->assertCount( 1, $this->get_hook_jobs(), 'No duplicate event should be added.' );
+		$this->assertSame( 1, $this->count_events( self::HOOK ), 'No duplicate event should be added.' );
 	}
 
 	/**
@@ -104,5 +80,25 @@ class Test_Schedule_Event extends WP_UnitTestCase {
 			'return false'    => array( false ),
 			'return WP_Error' => array( true ),
 		);
+	}
+
+	/**
+	 * Test a duplicate single event doesn't change the cached recurring job.
+	 *
+	 * The worker loads jobs from the cache, so a cached single job would be
+	 * marked completed rather than rescheduled.
+	 *
+	 * @group rapid-cron-internals
+	 */
+	public function test_single_event_does_not_change_cached_recurring_job() {
+		wp_schedule_event( time(), 'hourly', self::HOOK );
+		$jobs = Job::get_jobs_by_query( array( 'hook' => self::HOOK ) );
+		$id   = $jobs[0]->id;
+
+		wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::HOOK );
+
+		$job = Job::get( $id );
+		$this->assertSame( 'hourly', $job->schedule, 'The cached job should keep its schedule.' );
+		$this->assertEquals( HOUR_IN_SECONDS, $job->interval, 'The cached job should keep its interval.' );
 	}
 }

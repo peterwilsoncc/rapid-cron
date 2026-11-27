@@ -8,7 +8,6 @@
 namespace PWCC\RapidCron\Tests;
 
 use PWCC\RapidCron\Job;
-use WP_UnitTestCase;
 
 use function PWCC\RapidCron\Database\get_table_name;
 use function PWCC\RapidCron\get_schedule_by_interval;
@@ -16,8 +15,12 @@ use function PWCC\RapidCron\get_schedules_by_interval;
 
 /**
  * Test schedule helpers.
+ *
+ * The helpers derive schedule names for stored jobs, which core doesn't have.
+ *
+ * @group rapid-cron-internals
  */
-class Test_Schedules extends WP_UnitTestCase {
+class Test_Schedules extends TestCase {
 
 	/**
 	 * Test schedules are indexed by interval.

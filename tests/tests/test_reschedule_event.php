@@ -9,14 +9,13 @@ namespace PWCC\RapidCron\Tests;
 
 use PWCC\RapidCron\Job;
 use WP_Error;
-use WP_UnitTestCase;
 
 use function PWCC\RapidCron\Database\get_table_name;
 
 /**
  * Test pre_reschedule_event().
  */
-class Test_Reschedule_Event extends WP_UnitTestCase {
+class Test_Reschedule_Event extends TestCase {
 
 	const HOOK = 'rapid_cron_test_hook';
 
@@ -74,6 +73,11 @@ class Test_Reschedule_Event extends WP_UnitTestCase {
 
 	/**
 	 * Test jobs with an unregistered interval are rescheduled using it.
+	 *
+	 * Stored jobs can have an interval without a schedule name, which core
+	 * events can't. Core also drops events whose schedule isn't registered.
+	 *
+	 * @group rapid-cron-internals
 	 */
 	public function test_reschedule_job_with_unregistered_interval() {
 		$id  = $this->insert_job( 1234, null );
@@ -93,6 +97,11 @@ class Test_Reschedule_Event extends WP_UnitTestCase {
 
 	/**
 	 * Test registered schedule names are stored when rescheduling.
+	 *
+	 * Stored jobs can have an interval without a schedule name, which core
+	 * events can't.
+	 *
+	 * @group rapid-cron-internals
 	 */
 	public function test_reschedule_job_stores_registered_schedule() {
 		$id  = $this->insert_job( HOUR_IN_SECONDS, null );
@@ -105,25 +114,34 @@ class Test_Reschedule_Event extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test events without an interval are not rescheduled.
+	 * Test recurring events are rescheduled using their schedule's interval.
+	 */
+	public function test_reschedule_recurring_event() {
+		wp_schedule_event( time(), 'hourly', self::HOOK );
+		$timestamp = wp_next_scheduled( self::HOOK );
+
+		$this->assertTrue( wp_reschedule_event( $timestamp, 'hourly', self::HOOK ), 'Rescheduling should succeed.' );
+
+		// Core adds a new event, so remove the old one as wp-cron.php does.
+		wp_unschedule_event( $timestamp, self::HOOK );
+
+		$this->assertEqualsWithDelta( time() + HOUR_IN_SECONDS, wp_next_scheduled( self::HOOK ), 2, 'The event should be rescheduled an hour ahead.' );
+		$this->assertSame( 'hourly', wp_get_scheduled_event( self::HOOK )->schedule, 'The event should keep its schedule.' );
+		$this->assertSame( 1, $this->count_events( self::HOOK ), 'Only the rescheduled event should remain.' );
+	}
+
+	/**
+	 * Test single events are not rescheduled.
 	 *
-	 * @dataProvider data_reschedule_event_without_interval
+	 * @dataProvider data_reschedule_single_event
 	 *
 	 * @param bool $wp_error Whether to return a WP_Error on failure.
 	 */
-	public function test_reschedule_event_without_interval( $wp_error ) {
-		$id  = $this->insert_job( null, null );
-		$job = $this->get_fresh_job( $id );
+	public function test_reschedule_single_event( $wp_error ) {
+		wp_schedule_single_event( time() + HOUR_IN_SECONDS, self::HOOK );
+		$timestamp = wp_next_scheduled( self::HOOK );
 
-		$event = (object) array(
-			'hook'      => self::HOOK,
-			'timestamp' => $job->next_run,
-			'schedule'  => 'not_a_schedule',
-			'args'      => array(),
-			'interval'  => 0,
-		);
-
-		$result = apply_filters( 'pre_reschedule_event', null, $event, $wp_error );
+		$result = wp_reschedule_event( $timestamp, 'not_a_schedule', self::HOOK, array(), $wp_error );
 
 		if ( $wp_error ) {
 			$this->assertInstanceOf( WP_Error::class, $result, 'A WP_Error should be returned.' );
@@ -131,15 +149,15 @@ class Test_Reschedule_Event extends WP_UnitTestCase {
 		} else {
 			$this->assertFalse( $result, 'False should be returned.' );
 		}
-		$this->assertSame( (int) $job->next_run, (int) $this->get_fresh_job( $id )->next_run, 'The job should not be rescheduled.' );
+		$this->assertSame( $timestamp, wp_next_scheduled( self::HOOK ), 'The event should not be rescheduled.' );
 	}
 
 	/**
-	 * Data provider for test_reschedule_event_without_interval.
+	 * Data provider for test_reschedule_single_event.
 	 *
 	 * @return array[] Test data.
 	 */
-	public function data_reschedule_event_without_interval() {
+	public function data_reschedule_single_event() {
 		return array(
 			'return false'    => array( false ),
 			'return WP_Error' => array( true ),
