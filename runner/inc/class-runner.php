@@ -410,6 +410,74 @@ class Runner {
 	}
 
 	/**
+	 * Recover a job whose worker exited unsuccessfully.
+	 *
+	 * The worker normally finishes the job itself, but can't if its process
+	 * was killed or ran out of memory. This runs `wp rapid-cron recover` so
+	 * the job leaves the running state. WP-CLI is used rather than updating
+	 * the database here so the plugin's object cache is flushed.
+	 *
+	 * The command does nothing if the worker already finished the job.
+	 *
+	 * @param Job $job The job to recover.
+	 */
+	protected function recover_job( $job ) {
+		$command = $this->get_recover_command( $job );
+		printf( '[%d] Recovering job (%s)' . PHP_EOL, $job->id, $command );
+
+		$spec    = array(
+			1 => array( 'pipe', 'w' ),
+			2 => array( 'pipe', 'w' ),
+		);
+		$process = proc_open( $command, $spec, $pipes, $this->wp_path );
+
+		if ( ! is_resource( $process ) ) {
+			printf( '[%d] Unable to start recovery process.' . PHP_EOL, $job->id );
+			return;
+		}
+
+		$output       = stream_get_contents( $pipes[1] );
+		$error_output = stream_get_contents( $pipes[2] );
+		fclose( $pipes[1] ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		fclose( $pipes[2] ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		$exit_code = proc_close( $process );
+
+		printf( '[%d] Recovery out: %s' . PHP_EOL, $job->id, trim( $output ) );
+		printf( '[%d] Recovery err: %s' . PHP_EOL, $job->id, trim( $error_output ) );
+		printf( '[%d] Recovery ret: %d' . PHP_EOL, $job->id, $exit_code );
+	}
+
+	/**
+	 * Get the WP-CLI command to recover a job.
+	 *
+	 * @param Job $job The job to recover.
+	 * @return string The command.
+	 */
+	protected function get_recover_command( $job ) {
+		$site_url = $job->get_site_url();
+
+		$command = sprintf(
+			'wp rapid-cron recover %d',
+			$job->id
+		);
+
+		if ( $site_url ) {
+			$command .= sprintf(
+				' --url=%s',
+				escapeshellarg( $site_url )
+			);
+		}
+
+		/**
+		 * Filter for the command to be run to recover a job.
+		 *
+		 * @param string $command Full shell command to be run to recover the job.
+		 * @param Job $job Job to be recovered.
+		 */
+		return $this->hooks->run( 'Runner.get_recover_command.command', $command, $job );
+	}
+
+	/**
 	 * Check for workers.
 	 *
 	 * @return mixed Workers.
@@ -471,7 +539,7 @@ class Runner {
 			}
 
 			if ( ! $worker->shutdown() ) {
-				$worker->job->mark_failed();
+				$this->recover_job( $worker->job );
 				$logger->log_job_failed( $worker->job, 'Failed to shutdown worker.' );
 
 				/**

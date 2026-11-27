@@ -52,17 +52,90 @@ class Command extends WP_CLI_Command {
 		 * @param string $hook Name of the hook that was scheduled to be fired.
 		 * @param array  $args The arguments to be passed to the hook.
 		 */
+		$finished = false;
+
+		/*
+		 * Finish the job if the process ends before the hook returns.
+		 *
+		 * `finally` blocks don't run after a fatal error or `exit()`, but
+		 * shutdown functions do. A fatal error fails the job; an `exit()`
+		 * is treated as completion.
+		 */
+		register_shutdown_function(
+			function () use ( $job, &$finished ) {
+				if ( $finished ) {
+					return;
+				}
+				$finished = true;
+				$job->finish( self::is_fatal_error( error_get_last() ) );
+			}
+		);
+
 		try {
 			do_action_ref_array( $job->hook, $job->args );
+		} catch ( \Throwable $e ) {
+			$finished = true;
+			$job->finish( true );
+			throw $e;
 		}
-		finally {
-			if ( $job->schedule ) {
-				wp_reschedule_event( $job->next_run, $job->schedule, $job->hook, $job->args );
-			} else {
-				// Mark Job as completed.
-				$job->complete();
-			}
+
+		$finished = true;
+		$job->finish( false );
+	}
+
+	/**
+	 * Recover a job left running by a worker that has exited.
+	 *
+	 * Recurring jobs are rescheduled and single jobs are marked failed. Jobs
+	 * that are not in the running state are left alone, so this is safe to
+	 * call after a job has finished normally.
+	 *
+	 * Only use this when the job's process is no longer running.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : ID of the job to recover.
+	 *
+	 * @synopsis <id>
+	 */
+	public function recover( $args, $assoc_args ) {
+		$id = absint( $args[0] );
+
+		// Read the current status from the database, not a cached copy.
+		wp_cache_delete( "job::{$id}", 'rapid-cron-jobs' );
+		$job = Job::get( $id );
+		if ( empty( $job ) ) {
+			WP_CLI::error( 'Invalid job ID' );
 		}
+
+		if ( 'running' !== $job->status ) {
+			WP_CLI::log( sprintf( 'Job %d is %s, nothing to recover.', $job->id, $job->status ) );
+			return;
+		}
+
+		if ( ! $job->finish( true ) ) {
+			WP_CLI::error( sprintf( 'Unable to recover job %d.', $job->id ) );
+		}
+
+		// finish() sets the status on this instance when it fails the job.
+		WP_CLI::success( sprintf( 'Job %d recovered as %s.', $job->id, 'failed' === $job->status ? 'failed' : 'rescheduled' ) );
+	}
+
+	/**
+	 * Whether an error from error_get_last() ended the script.
+	 *
+	 * @param array|null $error Error from error_get_last().
+	 * @return bool True if the error was fatal.
+	 */
+	protected static function is_fatal_error( $error ) {
+		if ( empty( $error['type'] ) ) {
+			return false;
+		}
+
+		$fatal_types = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR | E_USER_ERROR | E_RECOVERABLE_ERROR;
+
+		return (bool) ( $error['type'] & $fatal_types );
 	}
 
 	/**

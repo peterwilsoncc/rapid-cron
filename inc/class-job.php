@@ -185,11 +185,59 @@ class Job {
 	 * @return WP_Error|bool Whether the job was marked completed. True on success.
 	 */
 	public function complete() {
+		return $this->update_status( 'completed' );
+	}
+
+	/**
+	 * Mark a job as failed in the database.
+	 *
+	 * @return bool Whether the job was marked failed. True on success.
+	 */
+	public function fail() {
+		return $this->update_status( 'failed' );
+	}
+
+	/**
+	 * Finish a job after it has run, or after its process has died.
+	 *
+	 * Recurring jobs are rescheduled whether or not the run succeeded,
+	 * matching WordPress core. If the job can't be rescheduled, eg its
+	 * schedule no longer exists, it is marked failed so it is not left
+	 * in the running state.
+	 *
+	 * Single jobs are marked completed or failed.
+	 *
+	 * @param bool $failed Whether the run failed.
+	 * @return bool Whether the job's status was updated.
+	 */
+	public function finish( $failed = false ) {
+		if ( $this->schedule ) {
+			if ( wp_reschedule_event( $this->next_run, $this->schedule, $this->hook, $this->args ) ) {
+				return true;
+			}
+
+			return $this->fail();
+		}
+
+		if ( $failed ) {
+			return $this->fail();
+		}
+
+		return $this->complete();
+	}
+
+	/**
+	 * Update the job's status in the database.
+	 *
+	 * @param string $status The new status.
+	 * @return bool Whether the status was updated. True on success.
+	 */
+	protected function update_status( $status ) {
 		global $wpdb;
 		$wpdb->show_errors();
 
 		$set = array(
-			'status' => 'completed',
+			'status' => $status,
 		);
 
 		$where  = array(
@@ -197,6 +245,7 @@ class Job {
 		);
 		$result = $wpdb->update( $this->get_job_table(), $set, $where, $this->row_format( $set ), $this->row_format( $where ) );
 
+		$this->status = $status;
 		wp_cache_delete( "job::{$this->id}", 'rapid-cron-jobs' );
 		self::flush_query_cache();
 
