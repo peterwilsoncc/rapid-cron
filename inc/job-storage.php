@@ -131,8 +131,12 @@ function pre_schedule_event( $pre, $event, $wp_error = false ) {
 
 	$schedule_match = $existing->schedule === $event->schedule;
 
-	if ( $schedule_match && null === $existing->interval && ! isset( $event->interval ) ) {
-		// Unchanged or duplicate single event.
+	if ( false === $event->schedule ) {
+		/*
+		 * Duplicate single event. Matching core, a single event duplicates any
+		 * event, single or recurring, with the same hook and arguments within
+		 * the ten minute window. Recurring events are left unchanged.
+		 */
 		if ( $wp_error ) {
 			return new WP_Error(
 				'duplicate_event',
