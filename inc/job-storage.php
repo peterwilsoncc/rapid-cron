@@ -301,8 +301,21 @@ function pre_unschedule_event( $pre, $timestamp, $hook, $args, $wp_error = false
 
 	$job = $jobs[0];
 
-	// Delete it.
-	$job->delete();
+	/*
+	 * Delete it, including running jobs, so a job that unschedules itself
+	 * isn't rescheduled when it finishes. This matches core, which
+	 * reschedules recurring events before running them so unscheduling the
+	 * next event stops them.
+	 */
+	if ( true !== $job->delete( array( 'delete_running' => true ) ) ) {
+		if ( $wp_error ) {
+			return new WP_Error(
+				'could_not_set',
+				__( 'The cron event list could not be saved.', 'rapid-cron' )
+			);
+		}
+		return false;
+	}
 
 	return true;
 }
