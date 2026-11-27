@@ -23,7 +23,8 @@ on:
 
 jobs:
   phpunit:
-    name: WP ${{ inputs.wp-version }} / PHP ${{ inputs.php-version }} / ${{ inputs.test-mode }}
+    # Shown within the calling job's sidebar folder, which names the WP version and mode.
+    name: PHP ${{ inputs.php-version }}
     runs-on: ubuntu-latest
     env:
       DB_DATABASE: wordpress_test
