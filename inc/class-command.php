@@ -6,6 +6,7 @@
 namespace PWCC\RapidCron;
 
 use WP_CLI;
+use WP_CLI\ExitException;
 use WP_CLI_Command;
 
 use function PWCC\RapidCron\Database\get_table_name;
@@ -58,8 +59,10 @@ class Command extends WP_CLI_Command {
 		 * Finish the job if the process ends before the hook returns.
 		 *
 		 * `finally` blocks don't run after a fatal error or `exit()`, but
-		 * shutdown functions do. A fatal error fails the job; an `exit()`
-		 * is treated as completion.
+		 * shutdown functions do. A fatal error fails the job. A plain
+		 * `exit()` is treated as completion, as its exit code can't be read.
+		 * WP-CLI exits, eg from `WP_CLI::error()` or `wp_die()`, are caught
+		 * below so their exit code is used instead.
 		 */
 		register_shutdown_function(
 			function () use ( $job, &$finished ) {
@@ -71,16 +74,56 @@ class Command extends WP_CLI_Command {
 			}
 		);
 
+		$restore_exit = self::capture_wp_cli_exit();
+
 		try {
 			do_action_ref_array( $job->hook, $job->args );
+		} catch ( ExitException $e ) {
+			// WP-CLI exit: fail the job for a non-zero exit code, then exit with it.
+			$restore_exit();
+			$finished = true;
+			$job->finish( 0 !== $e->getCode() );
+			exit( $e->getCode() );
 		} catch ( \Throwable $e ) {
+			$restore_exit();
 			$finished = true;
 			$job->finish( true );
 			throw $e;
 		}
 
+		$restore_exit();
 		$finished = true;
 		$job->finish( false );
+	}
+
+	/**
+	 * Make WP-CLI throw an exception rather than exit.
+	 *
+	 * While capturing, `WP_CLI::error()`, `WP_CLI::halt()` and `wp_die()`
+	 * throw `WP_CLI\ExitException` with the exit code as its code, so the job
+	 * can be failed or completed before exiting. WP-CLI only exposes this via
+	 * `WP_CLI::runcommand()`, so the private property is set directly. If it
+	 * doesn't exist, WP-CLI exits as normal and the shutdown function treats
+	 * the exit as completion.
+	 *
+	 * @return callable Function to call to stop capturing.
+	 */
+	protected static function capture_wp_cli_exit() {
+		if ( ! property_exists( WP_CLI::class, 'capture_exit' ) ) {
+			return function () {};
+		}
+
+		$property = new \ReflectionProperty( WP_CLI::class, 'capture_exit' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$property->setAccessible( true );
+		}
+
+		$previous = $property->getValue();
+		$property->setValue( null, true );
+
+		return function () use ( $property, $previous ) {
+			$property->setValue( null, $previous );
+		};
 	}
 
 	/**
