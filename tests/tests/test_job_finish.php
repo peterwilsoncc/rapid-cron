@@ -107,12 +107,11 @@ class Test_Job_Finish extends TestCase {
 	}
 
 	/**
-	 * Test recurring jobs whose schedule has been removed are rescheduled
-	 * using their stored interval.
+	 * Test recurring jobs whose schedule has been removed are marked failed.
+	 *
+	 * This matches core, which drops events whose schedule has been removed.
 	 */
 	public function test_finish_recurring_job_with_missing_schedule() {
-		global $wpdb;
-
 		$add_schedule = function ( $schedules ) {
 			$schedules['rapid_cron_test'] = array(
 				'interval' => 5 * MINUTE_IN_SECONDS,
@@ -126,16 +125,9 @@ class Test_Job_Finish extends TestCase {
 		$job = $this->get_running_job();
 		remove_filter( 'cron_schedules', $add_schedule );
 
-		$this->assertTrue( $job->finish(), 'Finishing the job should succeed.' );
-
-		$job = $this->get_fresh_job( $job->id );
-		$this->assertSame( 'waiting', $job->status, 'The job should be waiting.' );
-		$this->assertEqualsWithDelta( time() + 5 * MINUTE_IN_SECONDS, (int) $job->next_run, 2, 'The job should be rescheduled using its stored interval.' );
-		$this->assertSame( (int) $job->next_run, wp_next_scheduled( self::HOOK ), 'The rescheduled job should be reported as scheduled.' );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$stored_schedule = $wpdb->get_var( $wpdb->prepare( 'SELECT schedule FROM %i WHERE id = %d', Job::get_job_table(), $job->id ) );
-		$this->assertNull( $stored_schedule, 'The unregistered schedule name should not be stored.' );
+		$this->assertTrue( $job->finish(), 'Failing the job should succeed.' );
+		$this->assertSame( 'failed', $this->get_fresh_job( $job->id )->status, 'The job should be failed.' );
+		$this->assertFalse( wp_next_scheduled( self::HOOK ), 'The failed job should not be reported as scheduled.' );
 	}
 
 	/**

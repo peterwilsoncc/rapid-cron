@@ -72,10 +72,11 @@ class Test_Reschedule_Event extends TestCase {
 	}
 
 	/**
-	 * Test jobs with an unregistered interval are rescheduled using it.
+	 * Test jobs with an unregistered interval are not rescheduled.
 	 *
 	 * Stored jobs can have an interval without a schedule name, which core
-	 * events can't. Core also drops events whose schedule isn't registered.
+	 * events can't. Matching core's handling of removed schedules, the fake
+	 * schedule they fall back to can't be rescheduled.
 	 *
 	 * @group rapid-cron-internals
 	 */
@@ -84,14 +85,9 @@ class Test_Reschedule_Event extends TestCase {
 		$job = $this->get_fresh_job( $id );
 		$this->assertSame( '__fake_schedule', $job->schedule, 'The schedule name should fall back to the fake schedule.' );
 
-		$this->assertTrue( wp_reschedule_event( $job->next_run, $job->schedule, self::HOOK ), 'Rescheduling should succeed.' );
+		$this->assertFalse( wp_reschedule_event( $job->next_run, $job->schedule, self::HOOK ), 'Rescheduling should fail.' );
 
-		// The cached job is used by the worker, so it must still be treated as recurring.
-		$this->assertSame( '__fake_schedule', Job::get( $id )->schedule, 'The cached job should keep the fake schedule.' );
-
-		$job = $this->get_fresh_job( $id );
-		$this->assertSame( '__fake_schedule', $job->schedule, 'The loaded job should fall back to the fake schedule.' );
-		$this->assertEqualsWithDelta( time() + 1234, (int) $job->next_run, 2, 'The job should be rescheduled using its stored interval.' );
+		$this->assertSame( (int) $job->next_run, (int) $this->get_fresh_job( $id )->next_run, 'The job should not be rescheduled.' );
 		$this->assertNull( $this->get_stored_schedule( $id ), 'The fake schedule name should not be stored.' );
 	}
 
@@ -111,6 +107,69 @@ class Test_Reschedule_Event extends TestCase {
 
 		$this->assertEqualsWithDelta( time() + HOUR_IN_SECONDS, (int) $this->get_fresh_job( $id )->next_run, 2, 'The job should be rescheduled an hour ahead.' );
 		$this->assertSame( 'hourly', $this->get_stored_schedule( $id ), 'The registered schedule name should be stored.' );
+	}
+
+	/**
+	 * Schedule the test event with a schedule that is then removed.
+	 */
+	private function schedule_event_with_removed_schedule() {
+		$add_schedule = function ( $schedules ) {
+			$schedules['rapid_cron_test'] = array(
+				'interval' => 5 * MINUTE_IN_SECONDS,
+				'display'  => 'Rapid Cron test',
+			);
+			return $schedules;
+		};
+
+		add_filter( 'cron_schedules', $add_schedule ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- five minute interval.
+		$this->assertTrue( wp_schedule_event( time(), 'rapid_cron_test', self::HOOK ), 'The event should be scheduled.' );
+		remove_filter( 'cron_schedules', $add_schedule );
+	}
+
+	/**
+	 * Test events whose schedule has been removed are not rescheduled.
+	 *
+	 * @dataProvider data_reschedule_event_with_removed_schedule
+	 *
+	 * @param bool $wp_error Whether to return a WP_Error on failure.
+	 */
+	public function test_reschedule_event_with_removed_schedule( $wp_error ) {
+		$this->schedule_event_with_removed_schedule();
+		$timestamp = wp_next_scheduled( self::HOOK );
+
+		$result = wp_reschedule_event( $timestamp, 'rapid_cron_test', self::HOOK, array(), $wp_error );
+
+		if ( $wp_error ) {
+			$this->assertInstanceOf( WP_Error::class, $result, 'A WP_Error should be returned.' );
+			$this->assertSame( 'invalid_schedule', $result->get_error_code(), 'The error code is incorrect.' );
+		} else {
+			$this->assertFalse( $result, 'False should be returned.' );
+		}
+		$this->assertSame( $timestamp, wp_next_scheduled( self::HOOK ), 'The event should not be rescheduled.' );
+		$this->assertSame( 1, $this->count_events( self::HOOK ), 'No event should be added.' );
+	}
+
+	/**
+	 * Data provider for test_reschedule_event_with_removed_schedule.
+	 *
+	 * @return array[] Test data.
+	 */
+	public function data_reschedule_event_with_removed_schedule() {
+		return array(
+			'return false'    => array( false ),
+			'return WP_Error' => array( true ),
+		);
+	}
+
+	/**
+	 * Test events whose schedule has been removed stop once they run.
+	 */
+	public function test_running_event_with_removed_schedule_stops() {
+		$this->schedule_event_with_removed_schedule();
+
+		$this->run_next_event( self::HOOK, '__return_null' );
+
+		$this->assertFalse( wp_next_scheduled( self::HOOK ), 'The event should not be rescheduled.' );
 	}
 
 	/**

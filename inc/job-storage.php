@@ -189,6 +189,24 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		return $pre;
 	}
 
+	/*
+	 * Match core, which only reschedules events with a registered schedule.
+	 * An event whose schedule has been removed is dropped by core, so its
+	 * job is marked failed when it finishes.
+	 */
+	$schedules = wp_get_schedules();
+
+	if ( ! isset( $schedules[ $event->schedule ] ) ) {
+		if ( $wp_error ) {
+			return new WP_Error(
+				'invalid_schedule',
+				__( 'Event schedule does not exist.', 'rapid-cron' )
+			);
+		}
+
+		return false;
+	}
+
 	// First check if the job exists already.
 	$jobs = Job::get_jobs_by_query(
 		array(
@@ -214,26 +232,8 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 
 	$job = $jobs[0];
 
-	/*
-	 * Match core: use the registered schedule's interval, which core passes in
-	 * the event, falling back to the interval stored with the job if the
-	 * schedule no longer exists.
-	 */
-	$interval = isset( $event->interval ) ? (int) $event->interval : 0;
-	if ( $interval <= 0 ) {
-		$interval = (int) $job->interval;
-	}
-
-	// No interval, so assume something is wrong (single job?) and fail to reschedule.
-	if ( $interval <= 0 ) {
-		if ( $wp_error ) {
-			return new WP_Error(
-				'invalid_schedule',
-				__( 'Event schedule does not exist.', 'rapid-cron' )
-			);
-		}
-		return false;
-	}
+	// Match core: use the registered schedule's interval.
+	$interval = (int) $schedules[ $event->schedule ]['interval'];
 
 	$now = time();
 	if ( $event->timestamp >= $now ) {
@@ -242,16 +242,9 @@ function pre_reschedule_event( $pre, $event, $wp_error = false ) {
 		$timestamp = $now + ( $interval - ( ( $now - $event->timestamp ) % $interval ) );
 	}
 
-	/*
-	 * Fall back to the fake schedule if the schedule isn't registered. It is
-	 * stored as null and derived from the interval when the job is loaded, so
-	 * the name returns if the schedule is registered again.
-	 */
-	$schedules = wp_get_schedules();
-
 	$job->next_run = $timestamp;
 	$job->interval = $interval;
-	$job->schedule = isset( $schedules[ $event->schedule ] ) ? $event->schedule : '__fake_schedule';
+	$job->schedule = $event->schedule;
 	$job->save( 'waiting' );
 
 	// Rescheduled.
